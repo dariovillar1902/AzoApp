@@ -25,6 +25,7 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedBank, setSelectedBank] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
+  const [lastUpdated, setLastUpdated] = useState<string>('');
   const router = useRouter();
 
   useEffect(() => {
@@ -41,6 +42,13 @@ export default function HomeScreen() {
         url += `?bank=${encodeURIComponent(selectedBank)}`;
       }
       const response = await fetch(url);
+      const headerValue = response.headers.get('X-Last-Updated');
+      if (headerValue) {
+        const date = new Date(headerValue);
+        setLastUpdated(
+          date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        );
+      }
       const data = await response.json();
       setDiscounts(data);
     } catch (error) {
@@ -114,7 +122,9 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <Text style={styles.welcomeText}>Bienvenido</Text>
         <Text style={styles.appTitle}>Beneficios</Text>
-        <Text style={styles.subtitle}>Descubrí tus descuentos hoy</Text>
+        <Text style={styles.subtitle}>
+          {lastUpdated ? `Actualizado: ${lastUpdated}` : 'Descubrí tus descuentos hoy'}
+        </Text>
         
         {/* Search Bar */}
         <View style={styles.searchContainer}>
