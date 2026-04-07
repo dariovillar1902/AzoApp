@@ -17,7 +17,8 @@ public class SwissMedicalScraper : PlaywrightScraperBase, IScraper
 
         try
         {
-            await page.GotoAsync("https://www.swissmedical.com.ar/smg/beneficios",
+            // Benefits are hosted on Maslow HR platform (Swiss Medical Club)
+            await page.GotoAsync("https://app.maslow.hr/dashboard?utm_source=web&utm_medium=bannerhome&utm_campaign=clubswissmedical",
                 new() { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 30000 });
 
             // Scroll to trigger lazy loading
@@ -56,7 +57,7 @@ public class SwissMedicalScraper : PlaywrightScraperBase, IScraper
                     var href = linkEl != null ? await linkEl.GetAttributeAsync("href") : null;
                     var url = href != null && !href.StartsWith("http")
                         ? "https://www.swissmedical.com.ar" + href
-                        : href ?? "https://www.swissmedical.com.ar/smg/beneficios";
+                        : href ?? "https://app.maslow.hr/dashboard?utm_campaign=clubswissmedical";
 
                     var stores = ScraperHelpers.ExtractStores(description + " " + title);
 
