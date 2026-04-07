@@ -15,7 +15,7 @@ interface Discount {
   stores: string[] | null;
 }
 
-const BANKS = ["All", "Banco Nación", "Club La Nacion", "BBVA", "Santander", "Banco Ciudad"];
+const BANKS = ["All", "Banco Nación", "Club La Nacion", "BBVA", "Santander", "Banco Ciudad", "Swiss Medical"];
 
 const { width } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';

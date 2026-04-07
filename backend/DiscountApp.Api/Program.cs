@@ -21,7 +21,8 @@ builder.Services.AddCors(options =>
         {
             policy.WithOrigins("http://localhost:8081", "http://10.0.2.2:8081")
                   .AllowAnyHeader()
-                  .AllowAnyMethod();
+                  .AllowAnyMethod()
+                  .WithExposedHeaders("X-Last-Updated");
         });
 });
 
@@ -36,6 +37,7 @@ builder.Services.AddScoped<IScraper, BBVAScraper>();
 builder.Services.AddScoped<IScraper, BancoCiudadScraper>();
 builder.Services.AddScoped<IScraper, SantanderScraper>();
 builder.Services.AddScoped<IScraper, SemanaNacionScraper>();
+builder.Services.AddScoped<IScraper, SwissMedicalScraper>();
 
 var app = builder.Build();
 
