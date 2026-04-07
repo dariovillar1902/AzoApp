@@ -98,6 +98,9 @@ public class BancoCiudadScraper : HttpScraperBase
                         }
                     }
 
+                    var stores = ScraperHelpers.ExtractStores(description);
+                    if (stores.Count == 0) stores = ScraperHelpers.ExtractStores(title);
+
                     discounts.Add(new Discount
                     {
                         Title = title,
@@ -107,7 +110,8 @@ public class BancoCiudadScraper : HttpScraperBase
                         Url = "https://www.bancociudad.com.ar/beneficios",
                         Amount = amount,
                         Currency = currency,
-                        Category = category
+                        Category = category,
+                        Stores = stores.Count > 0 ? stores : null
                     });
                 }
                 catch

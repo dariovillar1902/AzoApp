@@ -62,6 +62,9 @@ public class BBVAScraper : HttpScraperBase
                         }
                     }
 
+                    var stores = ScraperHelpers.ExtractStores(description);
+                    if (stores.Count == 0) stores = ScraperHelpers.ExtractStores(title);
+
                     discounts.Add(new Discount
                     {
                         Title = title,
@@ -71,7 +74,8 @@ public class BBVAScraper : HttpScraperBase
                         Url = link,
                         Amount = amount,
                         Currency = currency,
-                        Category = category
+                        Category = category,
+                        Stores = stores.Count > 0 ? stores : null
                     });
                 }
                 catch 

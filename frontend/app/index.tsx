@@ -12,6 +12,7 @@ interface Discount {
   amount: number | null;
   currency: string;
   imageUrl: string | null;
+  stores: string[] | null;
 }
 
 const BANKS = ["All", "Banco Nación", "Club La Nacion", "BBVA", "Santander", "Banco Ciudad"];
@@ -108,6 +109,12 @@ export default function HomeScreen() {
             
             <View style={styles.cardFooter}>
                  <Text style={styles.categoryText}>{item.category}</Text>
+                 {item.stores && item.stores.length > 0 && (
+                     <Text style={styles.storesText} numberOfLines={1}>
+                         {item.stores.slice(0, 3).join(' · ')}
+                         {item.stores.length > 3 ? ` +${item.stores.length - 3} más` : ''}
+                     </Text>
+                 )}
             </View>
         </View>
       </View>
@@ -378,6 +385,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#94a3b8',
     fontWeight: '500',
+  },
+  storesText: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '500',
+    marginTop: 2,
   },
   loadingText: {
     color: '#94a3b8',

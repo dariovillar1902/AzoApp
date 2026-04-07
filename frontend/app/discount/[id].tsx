@@ -17,6 +17,7 @@ interface Discount {
   url: string;
   imageUrl: string | null;
   expirationDate: string | null;
+  stores: string[] | null;
 }
 
 const { width } = Dimensions.get('window');
@@ -129,6 +130,20 @@ export default function DiscountDetail() {
                 <Text style={styles.description}>
                     {discount.description || "Aprovechá este beneficio exclusivo presentando tu tarjeta o credencial al momento de pagar. Consultá los términos y condiciones en el sitio web."}
                 </Text>
+
+                {/* Stores */}
+                {discount.stores && discount.stores.length > 0 && (
+                    <>
+                        <Text style={styles.sectionHeader}>Aplica en</Text>
+                        <View style={styles.storesGrid}>
+                            {discount.stores.map(store => (
+                                <View key={store} style={styles.storeBadge}>
+                                    <Text style={styles.storeText}>{store}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    </>
+                )}
 
                 {/* Validity Information */}
                 <View style={styles.validityContainer}>
@@ -301,6 +316,23 @@ const styles = StyleSheet.create({
     color: '#475569',
     lineHeight: 24,
     marginBottom: 32,
+  },
+  storesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 24,
+  },
+  storeBadge: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  storeText: {
+    color: '#475569',
+    fontSize: 13,
+    fontWeight: '600',
   },
   validityContainer: {
     backgroundColor: '#f8fafc',

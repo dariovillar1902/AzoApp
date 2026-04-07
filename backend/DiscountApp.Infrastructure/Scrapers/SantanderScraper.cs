@@ -77,6 +77,9 @@ public class SantanderScraper : HttpScraperBase
                         }
                     }
 
+                    var stores = ScraperHelpers.ExtractStores(description);
+                    if (stores.Count == 0) stores = ScraperHelpers.ExtractStores(title);
+
                     discounts.Add(new Discount
                     {
                         Title = title,
@@ -86,7 +89,8 @@ public class SantanderScraper : HttpScraperBase
                         Url = "https://www.santander.com.ar/personas/beneficios",
                         Amount = amount,
                         Currency = currency,
-                        Category = category
+                        Category = category,
+                        Stores = stores.Count > 0 ? stores : null
                     });
                 }
                 catch

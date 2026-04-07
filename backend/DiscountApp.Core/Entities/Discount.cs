@@ -16,5 +16,6 @@ namespace DiscountApp.Core.Entities
         public string? ImageUrl { get; set; }
         public DateTime? ExpirationDate { get; set; }
         public DateTime ScrapedAt { get; set; } = DateTime.UtcNow;
+        public List<string>? Stores { get; set; } = new();
     }
 }

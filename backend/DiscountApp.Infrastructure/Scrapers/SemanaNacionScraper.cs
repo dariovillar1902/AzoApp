@@ -132,6 +132,9 @@ public class SemanaNacionScraper : PlaywrightScraperBase, IScraper
                         category = "Financiación";
                     }
 
+                    var stores = ScraperHelpers.ExtractStores(description);
+                    if (stores.Count == 0) stores = ScraperHelpers.ExtractStores(title);
+
                     discounts.Add(new Discount
                     {
                         Title = title,
@@ -141,7 +144,8 @@ public class SemanaNacionScraper : PlaywrightScraperBase, IScraper
                         Url = href ?? "https://semananacion.com.ar",
                         Amount = amount,
                         Currency = currency,
-                        Category = category
+                        Category = category,
+                        Stores = stores.Count > 0 ? stores : null
                     });
                 }
                 catch

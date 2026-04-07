@@ -65,6 +65,7 @@ namespace DiscountApp.Infrastructure.Services
                 Url = d.Url,
                 ImageUrl = d.ImageUrl,
                 ExpirationDate = d.ExpirationDate,
+                Stores = d.Stores,
                 ScrapedAt = now
             }).ToList();
 
