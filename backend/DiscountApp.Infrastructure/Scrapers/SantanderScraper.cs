@@ -20,8 +20,10 @@ public class SantanderScraper : HttpScraperBase
             var root = JsonNode.Parse(json);
             if (root == null) return discounts;
 
-            var items = root["brands"]?.AsArray();
-            if (items == null) items = root["data"]?["brands"]?.AsArray(); // Fallback check
+            // API response uses "items" key (was "brands" previously)
+            var items = root["items"]?.AsArray()
+                ?? root["brands"]?.AsArray()
+                ?? root["data"]?["brands"]?.AsArray();
 
             if (items == null) return discounts;
 
@@ -29,17 +31,19 @@ public class SantanderScraper : HttpScraperBase
             {
                 try
                 {
-                    // Item is a "Brand". It might have a specific discount inside, or just be the brand.
-                    // The API returns "cards".
                     var title = item["name"]?.ToString() ?? "Descuento Santander";
-                    var description = item["benefitDescription"]?.ToString() ?? ""; 
-                    // Santander usually puts the main promo in 'benefitDescription' e.g. "20% y 3 cuotas"
-                    
-                    var imgNode = item["images"]?["detail"] ?? item["images"]?["logo"];
-                    var imageUrl = imgNode?.ToString();
+                    var description = item["benefitDescription"]?.ToString() ?? "";
+
+                    // Images are now direct URL fields (desktopImage, mobileMinImage, etc.)
+                    var imageUrl = item["desktopMinImage"]?.ToString()
+                        ?? item["mobileMinImage"]?.ToString()
+                        ?? item["desktopImage"]?.ToString()
+                        ?? item["images"]?["detail"]?.ToString()
+                        ?? item["images"]?["logo"]?.ToString();
+
                     if (!string.IsNullOrEmpty(imageUrl) && !imageUrl.StartsWith("http"))
                     {
-                         imageUrl = "https://www.santander.com.ar" + imageUrl; // Sometimes relative
+                        imageUrl = "https://www.santander.com.ar" + imageUrl;
                     }
 
                     // Parse amount from description

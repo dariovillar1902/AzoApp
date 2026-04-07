@@ -26,14 +26,31 @@ public class BancoCiudadScraper : HttpScraperBase
             client.DefaultRequestHeaders.Add("Referer", "https://www.bancociudad.com.ar/institucional/beneficios/");
             client.DefaultRequestHeaders.Add("Origin", "https://www.bancociudad.com.ar");
 
-            var json = await client.GetStringAsync("https://www.bancociudad.com.ar/beneficios_rest/beneficios/inicializacion");
-            
-            var root = JsonNode.Parse(json);
+            JsonNode? root = null;
+
+            // Try inicializacion first; fall back to busqueda if it fails (e.g. 500)
+            try
+            {
+                var json = await client.GetStringAsync("https://www.bancociudad.com.ar/beneficios_rest/beneficios/inicializacion");
+                root = JsonNode.Parse(json);
+            }
+            catch
+            {
+                var content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json");
+                var resp = await client.PostAsync("https://www.bancociudad.com.ar/beneficios_rest/beneficios/busqueda", content);
+                var json = await resp.Content.ReadAsStringAsync();
+                root = JsonNode.Parse(json);
+            }
+
             if (root == null) return discounts;
 
-            // Structure usually: { "beneficios": [ ... ] } or simple list
-            var items = root["beneficios"]?.AsArray();
-            
+            // Guard: if API returned a service-error envelope, bail out cleanly
+            if (root["mensaje"]?.ToString() == "ERROR") return discounts;
+
+            var items = root["beneficios"]?.AsArray()
+                ?? root["items"]?.AsArray()
+                ?? (root is JsonArray arr ? arr : null);
+
             if (items == null) return discounts;
 
             foreach (var item in items)
