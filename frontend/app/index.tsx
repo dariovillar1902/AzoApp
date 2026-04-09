@@ -1,4 +1,4 @@
-import { View, Text, FlatList, ActivityIndicator, Image, Pressable, StatusBar, StyleSheet, Platform, Dimensions, TextInput } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, Image, Pressable, StatusBar, StyleSheet, Platform, Dimensions, TextInput, Alert } from 'react-native';
 import { useEffect, useState, useMemo } from 'react';
 import { API_URL } from '../constants/Config';
 import { useRouter } from 'expo-router';
@@ -27,6 +27,7 @@ export default function HomeScreen() {
   const [selectedBank, setSelectedBank] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [lastUpdated, setLastUpdated] = useState<string>('');
+  const [scraping, setScraping] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -56,6 +57,19 @@ export default function HomeScreen() {
       console.error("Error fetching discounts:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const triggerScrape = async (): Promise<void> => {
+    setScraping(true);
+    try {
+      const response = await fetch(`${API_URL}/api/scrape`, { method: 'POST' });
+      if (!response.ok) throw new Error('Error al actualizar');
+      await fetchDiscounts();
+    } catch (error: unknown) {
+      Alert.alert('Error', 'No se pudieron actualizar los descuentos. Verificá la conexión.');
+    } finally {
+      setScraping(false);
     }
   };
 
@@ -127,10 +141,31 @@ export default function HomeScreen() {
       
       {/* Header Area */}
       <View style={styles.header}>
-        <Text style={styles.welcomeText}>Bienvenido</Text>
-        <Text style={styles.appTitle}>Beneficios</Text>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.welcomeText}>Bienvenido</Text>
+            <Text style={styles.appTitle}>Beneficios</Text>
+          </View>
+          <Pressable
+            onPress={triggerScrape}
+            disabled={scraping}
+            style={({ pressed }) => [
+              styles.refreshButton,
+              (pressed || scraping) && styles.refreshButtonActive,
+            ]}
+          >
+            {scraping
+              ? <ActivityIndicator size="small" color="#ffffff" />
+              : <Ionicons name="refresh" size={20} color="#ffffff" />
+            }
+          </Pressable>
+        </View>
         <Text style={styles.subtitle}>
-          {lastUpdated ? `Actualizado: ${lastUpdated}` : 'Descubrí tus descuentos hoy'}
+          {scraping
+            ? 'Actualizando descuentos...'
+            : lastUpdated
+            ? `Actualizado: ${lastUpdated}`
+            : 'Tocá ↺ para cargar descuentos'}
         </Text>
         
         {/* Search Bar */}
@@ -220,6 +255,23 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 5,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  refreshButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  refreshButtonActive: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   searchContainer: {
     flexDirection: 'row',
