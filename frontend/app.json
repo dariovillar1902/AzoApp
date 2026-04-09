@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Beneficios",
+    "slug": "beneficios-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dariovillar.beneficiosapp"
+    },
+    "android": {
+      "package": "com.dariovillar.beneficiosapp"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "scheme": "beneficiosapp"
+  }
+}
