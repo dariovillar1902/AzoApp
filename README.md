@@ -28,6 +28,10 @@ el scraper de beneficios bancarios que ya tenía este repo.
   - Checklist para tildar en el súper, **Ya compré acá** (descuenta lo
     usado del tope de esa promo), **Recordarme** (notificación a las 9:00
     del día elegido) y **Compartir** (texto para WhatsApp).
+  - 📷 Escáner de código de barras: agrega el producto exacto (EAN) a la
+    lista. 📍 "Cerca mío": la sucursal más cercana de cada cadena
+    (OpenStreetMap) con link para llegar. Precio por kg / l / unidad para
+    comparar tamaños.
   - Historial de precios en el dispositivo: debajo de cada producto, si
     subió/bajó desde la última vez, el mínimo visto y un aviso cuando el
     "precio antes" es más alto que todo lo que se le vio cobrar.
@@ -42,6 +46,8 @@ el scraper de beneficios bancarios que ya tenía este repo.
   (jubilados) y en qué cadenas comparar. Se guarda en el dispositivo.
   "Registrar reintegros": pegás los avisos de reintegro de Mercado Pago,
   MODO o el banco y se descuentan del tope de la promo que corresponde.
+  "Respaldo": exporta todo (medios, topes, correcciones, lista, historial)
+  como una línea de texto para pasarlo a otro dispositivo.
 
 ## Cómo decide
 
@@ -86,6 +92,7 @@ frontend/                 Expo (iOS/Android/web) + API routes
   app/api/plan+api.ts     POST: lista -> plan
   app/api/promos+api.ts   GET: catálogo + promos en vivo de Coto
   app/api/alternatives+api.ts  GET: productos de una cadena para elegir a mano
+  app/api/branches+api.ts GET: sucursal más cercana de cada cadena (OpenStreetMap)
   lib/core/               normalización y matching de productos
   lib/stores/             buscadores por cadena (VTEX, Coto, Farmatodo)
   lib/benefits/           medios, catálogo, elegibilidad
@@ -109,15 +116,40 @@ en la web.
 
 ## Deploy (Vercel)
 
-`frontend/vercel.json` + `frontend/api/index.js` sirven el build de Expo
-(páginas + API routes) con el adaptador `expo-server/adapter/vercel`.
+Proyecto `azoapp-frontend` (Root Directory `frontend`). `frontend/vercel.json`
++ `frontend/api/index.js` sirven el build de Expo (páginas + API routes) con
+`expo-server/adapter/vercel`. Producción sale de `main`; cada push a otra
+rama genera un preview.
 
-1. En vercel.com → Add New → Project → importá `dariovillar1902/AzoApp`.
-2. **Root Directory = `frontend`**. Framework: "Other" (vercel.json define
-   build, output y rewrites). Opcional: Settings → Functions → región
-   `gru1` (São Paulo), la más cercana a Buenos Aires.
-3. Para la app del celular, seteá `EXPO_PUBLIC_API_ORIGIN` con la URL del
-   deploy al compilarla.
+**Importante:** en Settings → Deployment Protection, poné Vercel
+Authentication en **Standard Protection**. Con "All Deployments" la URL de
+producción pide login de Vercel y la app del iPhone no puede llamar a la API.
+Opcional: Settings → Functions → región `gru1` (São Paulo).
+
+## Usarlo en el iPhone (Expo Go)
+
+La app usa Expo SDK 58, la versión que corre la Expo Go actual del App Store.
+
+1. Instalá **Expo Go** desde el App Store.
+2. En la PC (misma Wi-Fi que el iPhone):
+   ```powershell
+   cd AzoApp\frontend
+   git pull
+   npm install
+   npx expo start
+   ```
+   Si el firewall de Windows pregunta por Node.js, permitilo en redes privadas.
+3. En el iPhone, abrí la **Cámara**, apuntá al QR de la terminal y tocá el
+   aviso. Permití "Red local" cuando lo pida.
+4. Si no conecta: `npx expo start --tunnel`.
+
+Con la app abierta desde la PC, las búsquedas de precios salen de tu
+conexión. Sin la PC (o en un build instalado) la app usa
+`https://azoapp-frontend.vercel.app`. También podés abrir esa URL en Safari y
+"Agregar a pantalla de inicio" (todo menos notificaciones).
+
+Para instalarla como app propia (sin Expo Go) hace falta una cuenta de Apple
+Developer y `eas build -p ios` + TestFlight.
 
 El backend .NET (`cd backend && dotnet run --project DiscountApp.Api`) solo
 hace falta para la pestaña **Explorar**.
