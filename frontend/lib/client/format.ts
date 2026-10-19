@@ -3,6 +3,7 @@ import { MERCHANT_NAMES } from "../benefits/catalog";
 import { sourceName } from "../benefits/sources";
 import type { Promotion } from "../benefits/types";
 import { storeName } from "../stores/registry";
+import type { ProductOffer } from "../types";
 
 export function money(amount: number): string {
   return `$${Math.round(amount).toLocaleString("es-AR")}`;
@@ -36,4 +37,12 @@ export function promoConditions(p: Promotion): string {
   if (p.channel === "presencial") parts.push("solo en local");
   if (p.validUntil) parts.push(`hasta ${p.validUntil.split("-").reverse().slice(0, 2).join("/")}`);
   return parts.join(" · ");
+}
+
+/** "$1.890/kg", "$950/l", "$120/u" — for comparing different package sizes. */
+export function unitPrice(offer: Pick<ProductOffer, "price" | "sizeValue" | "sizeUnit">, price = offer.price): string | null {
+  if (!offer.sizeValue || offer.sizeValue <= 0 || !offer.sizeUnit) return null;
+  if (offer.sizeUnit === "un") return offer.sizeValue > 1 ? `${money(price / offer.sizeValue)}/u` : null;
+  const perBase = (price / offer.sizeValue) * 1000;
+  return `${money(perBase)}/${offer.sizeUnit === "g" ? "kg" : "l"}`;
 }

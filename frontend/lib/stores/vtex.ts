@@ -35,6 +35,16 @@ interface VtexProduct {
 }
 
 /**
+ * The "before" price, when it's believable. Cencosud's stores (Jumbo, Disco,
+ * Vea) fill ListPrice with an unrelated figure ~80x the real price (e.g.
+ * 214876 for a $2.600 milk); trusting it would make every product look ~99%
+ * off and skew both matching and the fake-discount warning.
+ */
+export function plausibleListPrice(price: number, listPrice: number): number | null {
+  return listPrice > price && listPrice <= price * 3 ? listPrice : null;
+}
+
+/**
  * Searches a VTEX-powered storefront's classic (legacy) search API. Both
  * Carrefour Argentina and Dia Argentina run on VTEX, so this is shared.
  */
@@ -73,7 +83,7 @@ export async function searchVtex(
         sizeValue: size?.value ?? null,
         sizeUnit: size?.unit ?? null,
         price: offer.Price,
-        listPrice: offer.ListPrice > offer.Price ? offer.ListPrice : null,
+        listPrice: plausibleListPrice(offer.Price, offer.ListPrice),
         inStock: offer.IsAvailable && offer.AvailableQuantity > 0,
         url: product.link,
         addToCartUrl: seller.addToCartLink ?? null,

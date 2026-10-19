@@ -16,6 +16,8 @@ export interface Settings extends UserProfile {
   refinements: Record<string, Refinement>;
   /** Scheduled weekly notification ids per promo id. */
   promoReminders: Record<string, string[]>;
+  /** Last position the user shared, to show nearby branches. */
+  location: { lat: number; lon: number } | null;
 }
 
 export interface Refinement {
@@ -31,6 +33,7 @@ const DEFAULT_SETTINGS: Settings = {
   capUsage: {},
   refinements: {},
   promoReminders: {},
+  location: null,
 };
 
 const STORAGE_KEY = "azoapp.settings.v1";
@@ -38,18 +41,22 @@ const STORAGE_KEY = "azoapp.settings.v1";
 interface SettingsContextValue {
   settings: Settings;
   update: (patch: Partial<Settings>) => void;
+  /** Re-reads settings from storage (after restoring a backup). */
+  reload: () => void;
 }
 
-const SettingsContext = createContext<SettingsContextValue>({ settings: DEFAULT_SETTINGS, update: () => {} });
+const SettingsContext = createContext<SettingsContextValue>({ settings: DEFAULT_SETTINGS, update: () => {}, reload: () => {} });
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
 
-  useEffect(() => {
+  const reload = () => {
     AsyncStorage.getItem(STORAGE_KEY)
       .then((raw) => raw && setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(raw) }))
       .catch(() => {});
-  }, []);
+  };
+
+  useEffect(reload, []);
 
   const update = (patch: Partial<Settings>) =>
     setSettings((prev) => {
@@ -58,7 +65,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       return next;
     });
 
-  return <SettingsContext.Provider value={{ settings, update }}>{children}</SettingsContext.Provider>;
+  return <SettingsContext.Provider value={{ settings, update, reload }}>{children}</SettingsContext.Provider>;
 }
 
 export const useSettings = () => useContext(SettingsContext);

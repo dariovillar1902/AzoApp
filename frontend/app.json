@@ -23,7 +23,21 @@
       "expo-notifications",
       "expo-splash-screen",
       "expo-status-bar",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "AzoApp usa la c\u00e1mara para escanear c\u00f3digos de barras de productos.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "AzoApp usa tu ubicaci\u00f3n para mostrarte la sucursal m\u00e1s cercana de cada cadena."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

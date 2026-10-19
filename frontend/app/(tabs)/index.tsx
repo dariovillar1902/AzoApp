@@ -2,19 +2,22 @@ import { useState } from 'react';
 import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Share, StatusBar, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AlternativesModal, type AlternativesTarget } from '../../components/AlternativesModal';
+import { ScannerModal } from '../../components/ScannerModal';
 import { Badge, Card, colors, Header, SectionTitle } from '../../components/ui';
 import { capPeriodKey } from '../../lib/benefits/eligibility';
 import { offerKey } from '../../lib/core/exclusions';
 import { normalizeText } from '../../lib/core/normalize';
 import { apiOrigin } from '../../lib/client/api';
-import { dayLabel, merchantName, money, promoConditions, promoHeadline } from '../../lib/client/format';
+import { dayLabel, merchantName, money, promoConditions, promoHeadline, unitPrice } from '../../lib/client/format';
 import { usePersistentJson, usePersistentState, useSettings, type Refinement } from '../../lib/client/profile';
 import { priceInsight, recordPlan, type PriceHistory } from '../../lib/client/priceHistory';
 import { planToText } from '../../lib/client/shareText';
 import { reminderMessage, remindVisit } from '../../lib/client/reminders';
 import { parseShoppingList } from '../../lib/planner/parseList';
 import type { PlanResponse } from '../../lib/planner/service';
+import { directionsUrl, type Branch } from '../../lib/stores/branches';
 import { storeName } from '../../lib/stores/registry';
+import * as Location from 'expo-location';
 import type { ProductOffer, StoreId } from '../../lib/types';
 
 type Stop = PlanResponse['stops'][number];
@@ -35,6 +38,34 @@ export default function ListScreen() {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [picking, setPicking] = useState<(AlternativesTarget & { itemQuery: string }) | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [branches, setBranches] = useState<Partial<Record<StoreId, Branch>>>({});
+
+  const loadBranches = async (location: { lat: number; lon: number }) => {
+    try {
+      const json = await fetch(`${apiOrigin()}/api/branches?lat=${location.lat}&lon=${location.lon}`).then((r) => r.json());
+      if (json.branches) setBranches(json.branches);
+    } catch {
+      // Nearby branches are a nice-to-have; the plan stands without them.
+    }
+  };
+
+  const locateMe = async () => {
+    try {
+      const { granted } = await Location.requestForegroundPermissionsAsync();
+      if (!granted) {
+        setNotice('Sin permiso de ubicación: activalo en Ajustes → AzoApp (o Expo Go) → Ubicación.');
+        return;
+      }
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const location = { lat: position.coords.latitude, lon: position.coords.longitude };
+      update({ location });
+      await loadBranches(location);
+      setNotice('Listo: te muestro la sucursal más cercana de cada cadena.');
+    } catch {
+      setNotice('No se pudo obtener tu ubicación.');
+    }
+  };
   const [history, updateHistory] = usePersistentJson<PriceHistory>('azoapp.prices.v1', {});
 
   // `refinements` is passed explicitly after a correction because settings update asynchronously.
@@ -60,6 +91,7 @@ export default function ListScreen() {
       setPlan(json);
       setChecked(new Set());
       updateHistory((prev) => recordPlan(prev, json, json.days[0].date));
+      if (settings.location) loadBranches(settings.location);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo conectar con el servidor');
     } finally {
@@ -156,6 +188,9 @@ export default function ListScreen() {
                 <Switch value={settings.fewerStops} onValueChange={(v) => update({ fewerStops: v })} />
                 <Text style={styles.switchLabel}>Menos paradas</Text>
               </View>
+              <Pressable onPress={() => setScanning(true)} hitSlop={8} style={styles.scanButton}>
+                <Ionicons name="barcode-outline" size={24} color={colors.brand} />
+              </Pressable>
               <Pressable
                 onPress={() => runPlan()}
                 disabled={loading || text.trim().length === 0}
@@ -185,6 +220,8 @@ export default function ListScreen() {
             <PlanView
               plan={plan}
               history={history}
+              branches={branches}
+              onLocate={locateMe}
               checked={checked}
               onToggleCheck={toggleCheck}
               onReject={rejectLine}
@@ -205,6 +242,15 @@ export default function ListScreen() {
         </View>
       </ScrollView>
       <AlternativesModal target={picking} onPick={pickOffer} onClose={() => setPicking(null)} />
+      <ScannerModal
+        visible={scanning}
+        onClose={() => setScanning(false)}
+        onScanned={(code) => {
+          setScanning(false);
+          setText(text.trim() ? `${text.trimEnd()}\n${code}` : code);
+          setNotice(`Código ${code} agregado a la lista.`);
+        }}
+      />
     </View>
   );
 }
@@ -212,6 +258,8 @@ export default function ListScreen() {
 interface PlanViewProps {
   plan: PlanResponse;
   history: PriceHistory;
+  branches: Partial<Record<StoreId, Branch>>;
+  onLocate: () => void;
   checked: Set<string>;
   onToggleCheck: (key: string) => void;
   onReject: (line: Line) => void;
@@ -222,7 +270,7 @@ interface PlanViewProps {
   onResetRefinements?: () => void;
 }
 
-function PlanView({ plan, history, checked, onToggleCheck, onReject, onChoose, onBought, onRemind, onShare, onResetRefinements }: PlanViewProps) {
+function PlanView({ plan, history, branches, onLocate, checked, onToggleCheck, onReject, onChoose, onBought, onRemind, onShare, onResetRefinements }: PlanViewProps) {
   const savings = plan.listTotal - plan.total;
   const failed = plan.storesFailed.length;
 
@@ -245,6 +293,10 @@ function PlanView({ plan, history, checked, onToggleCheck, onReject, onChoose, o
             <Ionicons name="share-outline" size={16} color="#fff" />
             <Text style={styles.summaryActionText}>Compartir</Text>
           </Pressable>
+          <Pressable onPress={onLocate} style={styles.summaryAction}>
+            <Ionicons name="location-outline" size={16} color="#fff" />
+            <Text style={styles.summaryActionText}>Cerca mío</Text>
+          </Pressable>
           {onResetRefinements ? (
             <Pressable onPress={onResetRefinements} style={styles.summaryAction}>
               <Ionicons name="refresh" size={16} color="#fff" />
@@ -264,6 +316,18 @@ function PlanView({ plan, history, checked, onToggleCheck, onReject, onChoose, o
             </View>
             <Text style={styles.stopTotal}>{money(stop.total)}</Text>
           </View>
+
+          {branches[stop.store] ? (
+            <Pressable onPress={() => Linking.openURL(directionsUrl(branches[stop.store]!, Platform.OS))}>
+              <Text style={styles.branch}>
+                📍 {branches[stop.store]!.address ?? branches[stop.store]!.name} ·{' '}
+                {branches[stop.store]!.distanceM < 1000
+                  ? `${branches[stop.store]!.distanceM} m`
+                  : `${(branches[stop.store]!.distanceM / 1000).toFixed(1)} km`}{' '}
+                · <Text style={styles.lineAction}>Cómo llegar</Text>
+              </Text>
+            </Pressable>
+          ) : null}
 
           {stop.promotion ? (
             <View style={styles.promoBox}>
@@ -292,11 +356,12 @@ function PlanView({ plan, history, checked, onToggleCheck, onReject, onChoose, o
                   <Pressable onPress={() => Linking.openURL(line.offer.url)}>
                     <Text style={[styles.lineQuery, done && styles.done]}>
                       {line.item.quantity > 1 ? `${line.item.quantity}× ` : ''}
-                      {line.item.query}
+                      {/^\d{8,14}$/.test(line.item.query) ? `📷 ${line.offer.name}` : line.item.query}
                     </Text>
                     <Text style={styles.lineProduct} numberOfLines={1}>
                       {line.isSubstitute ? '≈ ' : ''}
                       {line.offer.name}
+                      {unitPrice(line.offer) ? ` · ${unitPrice(line.offer)}` : ''}
                     </Text>
                   </Pressable>
                   <PriceNote insight={priceInsight(history, line.offer, plan.days[0].date)} />
@@ -366,7 +431,7 @@ function PlanView({ plan, history, checked, onToggleCheck, onReject, onChoose, o
             <Text style={styles.promoDetail} numberOfLines={2}>
               {itemPlan.options
                 .slice(1, 4)
-                .map((o) => `${storeName(o.store)} ${money(o.cost)}`)
+                .map((o) => `${storeName(o.store)} ${money(o.cost)}${unitPrice(o.offer) ? ` (${unitPrice(o.offer)})` : ''}`)
                 .join(' · ')}
             </Text>
           </Card>
@@ -434,6 +499,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   switchLabel: { color: colors.muted, fontWeight: '600' },
+  scanButton: { padding: 8, borderRadius: 10, backgroundColor: '#eff6ff' },
   button: { backgroundColor: colors.brand, paddingVertical: 12, paddingHorizontal: 22, borderRadius: 12, minWidth: 120, alignItems: 'center' },
   buttonText: { color: '#fff', fontWeight: '800', fontSize: 15 },
   hint: { color: colors.faint, marginTop: 8, fontSize: 12 },
@@ -458,7 +524,8 @@ const styles = StyleSheet.create({
   stopActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
   boughtButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, borderRadius: 10, backgroundColor: '#eff6ff' },
   boughtText: { color: colors.brand, fontWeight: '700', fontSize: 13 },
-  summaryActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  summaryActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
+  branch: { color: colors.muted, fontSize: 13, marginTop: 6 },
   summaryAction: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.12)', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999 },
   summaryActionText: { color: '#fff', fontWeight: '700', fontSize: 13 },
   lineQuery: { fontWeight: '700', color: colors.text, fontSize: 15 },

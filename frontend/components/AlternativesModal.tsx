@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { apiOrigin } from '../lib/client/api';
-import { money } from '../lib/client/format';
+import { money, unitPrice } from '../lib/client/format';
 import { storeName } from '../lib/stores/registry';
 import type { ProductOffer, StoreId } from '../lib/types';
 import { colors } from './ui';
@@ -68,7 +68,10 @@ export function AlternativesModal({
             {offers?.map((offer) => (
               <Pressable key={offer.id} style={styles.option} onPress={() => onPick(offer)}>
                 <Text style={styles.optionName}>{offer.name}</Text>
-                <Text style={styles.optionPrice}>{money(offer.price)}</Text>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={styles.optionPrice}>{money(offer.price)}</Text>
+                  {unitPrice(offer) ? <Text style={styles.optionUnit}>{unitPrice(offer)}</Text> : null}
+                </View>
               </Pressable>
             ))}
           </ScrollView>
@@ -93,6 +96,7 @@ const styles = StyleSheet.create({
   option: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', gap: 8 },
   optionName: { flex: 1, color: colors.text },
   optionPrice: { fontWeight: '700', color: colors.text },
+  optionUnit: { fontSize: 11, color: colors.muted },
   empty: { color: colors.faint, textAlign: 'center', margin: 24 },
   close: { alignItems: 'center', marginTop: 12 },
   closeText: { color: colors.muted, fontWeight: '700' },

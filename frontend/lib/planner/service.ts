@@ -47,6 +47,11 @@ export function categoryHintFor(query: string): PromoCategory | null {
   return null;
 }
 
+/** EAN-8/UPC/EAN-13/GTIN-14, as read by the barcode scanner. */
+export function isBarcode(query: string): boolean {
+  return /^\d{8,14}$/.test(query.trim());
+}
+
 export interface PlanRequest {
   items: ShoppingListItem[];
   profile: UserProfile;
@@ -81,6 +86,13 @@ export async function planForUser(request: PlanRequest): Promise<PlanResponse> {
           }
           // A product the user picked by hand on this store replaces the query for this store only.
           const query = item.queryBySite?.[store] ?? item.query;
+          if (isBarcode(query)) {
+            // A scanned EAN identifies one product: take the store's exact hit, no fuzzy matching.
+            const candidates = await cachedSearch(store, query);
+            if (candidates.length > 0) storesFailed.delete(store);
+            const hit = excludeOffers(candidates, item.excludedOfferIds).find((o) => o.inStock) ?? null;
+            return { requested: item, offer: hit, score: hit ? 1 : 0, isSubstitute: false };
+          }
           const candidates = await cachedSearch(store, stripSizeForSearch(query));
           if (candidates.length > 0) storesFailed.delete(store);
           const match = pickBestOffer({ ...item, query }, excludeOffers(candidates, item.excludedOfferIds));

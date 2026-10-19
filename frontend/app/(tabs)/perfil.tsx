@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StatusBar, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, Share, StatusBar, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BACKUP_KEYS, decodeBackup, encodeBackup } from '../../lib/client/backup';
 import { Card, colors, Header, SectionTitle } from '../../components/ui';
 import { SOURCES } from '../../lib/benefits/sources';
 import { isEligible, upcomingDays } from '../../lib/benefits/eligibility';
@@ -52,6 +54,9 @@ export default function ProfileScreen() {
 
           <SectionTitle>Registrar reintegros</SectionTitle>
           <ReceiptImport />
+
+          <SectionTitle>Respaldo / otro dispositivo</SectionTitle>
+          <BackupCard />
 
           <SectionTitle>Segmentos</SectionTitle>
           <Card>
@@ -128,6 +133,58 @@ function ReceiptImport() {
           {promotion ? `sumado al tope de ${promoHeadline(promotion)}` : 'no coincide con ninguna promo con tope'}
         </Text>
       ))}
+    </Card>
+  );
+}
+
+/**
+ * Moves everything (medios, topes usados, correcciones, lista, historial de
+ * precios) to another device or keeps a copy: one line of text you can send
+ * yourself by WhatsApp, mail or AirDrop.
+ */
+function BackupCard() {
+  const { reload } = useSettings();
+  const [text, setText] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+
+  const exportData = async () => {
+    try {
+      const pairs = await AsyncStorage.multiGet(BACKUP_KEYS);
+      const code = encodeBackup(Object.fromEntries(pairs));
+      if (Platform.OS === 'web') {
+        await navigator.clipboard.writeText(code);
+        setMessage('Respaldo copiado al portapapeles.');
+      } else {
+        await Share.share({ message: code });
+      }
+    } catch {
+      setMessage('No se pudo exportar.');
+    }
+  };
+
+  const importData = async () => {
+    try {
+      const values = decodeBackup(text);
+      await AsyncStorage.multiSet(Object.entries(values));
+      reload();
+      setText('');
+      setMessage('Respaldo restaurado. Cerrá y volvé a abrir la app para ver la lista y el historial.');
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'Respaldo inválido.');
+    }
+  };
+
+  return (
+    <Card>
+      <Text style={styles.help}>Exportá tus datos para pasarlos a otro celular o a la web, o pegá acá un respaldo para restaurarlo.</Text>
+      <Pressable onPress={exportData} style={styles.button}>
+        <Text style={styles.buttonText}>Exportar respaldo</Text>
+      </Pressable>
+      <TextInput style={styles.receiptInput} multiline value={text} onChangeText={setText} placeholder="AZOAPP1:…" placeholderTextColor={colors.faint} />
+      <Pressable onPress={importData} disabled={!text.trim()} style={[styles.button, !text.trim() && { opacity: 0.4 }]}>
+        <Text style={styles.buttonText}>Restaurar</Text>
+      </Pressable>
+      {message ? <Text style={styles.help}>{message}</Text> : null}
     </Card>
   );
 }

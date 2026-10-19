@@ -101,4 +101,23 @@ describe("planForUser", () => {
     expect(result.stops[0].lines[0].offer.name).toBe("Leche Entera La Serenísima 1 L");
     expect(result.items[0].item.query).toBe("leche entera 1l sin marca");
   });
+
+  it("takes a store's exact hit for a scanned barcode", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string) => {
+        const query = new URL(input).searchParams.get("ft");
+        return Response.json(query === "7790080011049" ? vtex([["Yerba Mate Taragüi 500 g", 2900]]) : []);
+      }),
+    );
+
+    const result = await planForUser({
+      items: [{ query: "7790080011049", quantity: 1 }],
+      profile: { sources: [] },
+      stores: ["carrefour"],
+      now: new Date("2026-10-22T13:00:00Z"),
+    });
+
+    expect(result.stops[0].lines[0].offer.name).toBe("Yerba Mate Taragüi 500 g");
+  });
 });

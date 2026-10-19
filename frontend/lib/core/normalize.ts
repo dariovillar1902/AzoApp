@@ -81,7 +81,7 @@ export function extractSize(text: string): ExtractedSize | null {
     return { sizeText: single[0], value, unit };
   }
 
-  const units = t.match(/(?:^|\s)(\d+)\s*(un|uni|unid|unidades|und|ud|uds|pack|caps|comprimidos)\b/);
+  const units = t.match(/(?:^|\s)(\d+)\s*(un|uni|unid|unidades|und|ud|uds|pack|caps|cap|capsulas|comp|comprimidos|tabletas|tab|sobres|saquitos)\b/);
   if (units) {
     return {
       sizeText: units[0].trim(),
