@@ -63,3 +63,13 @@ describe("catalog", () => {
     expect(new Set(CATALOG.map((p) => p.id)).size).toBe(CATALOG.length);
   });
 });
+
+describe("Coto live promo segments", () => {
+  it("tags plan-sueldo, Comunidad Coto and retiree promos", async () => {
+    const { audienceOf } = await import("./cotoLive");
+    expect(audienceOf("PLAN SUELDO En un pago con tarjetas de crédito Visa")).toBe("plan-sueldo");
+    expect(audienceOf("En un pago si sos miembro DE NUESTRA COMUNIDAD")).toBe("comunidad-coto");
+    expect(audienceOf("Jubilados y pensionados")).toBe("jubilados");
+    expect(audienceOf("En un pago con tarjetas crédito y débito Visa")).toBeUndefined();
+  });
+});

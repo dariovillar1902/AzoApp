@@ -11,22 +11,31 @@ import type { MatchedItem, ProductOffer, ShoppingListItem, StoreId } from "../ty
 import { planShopping, type PlanResult } from "./plan";
 
 const CACHE_TTL_MS = 30 * 60 * 1000;
-const searchCache = new Map<string, { at: number; offers: Promise<ProductOffer[]> }>();
+const searchCache = new Map<string, { at: number; result: Promise<SearchResult> }>();
 let cotoPromosCache: { at: number; promos: Promise<Promotion[]> } | null = null;
 
+interface SearchResult {
+  offers: ProductOffer[];
+  /** false when the store didn't answer (error, timeout, block), as opposed to answering "no results". */
+  ok: boolean;
+}
+
 /** Store searches are cached for 30 minutes: lists get re-planned a lot while being edited. */
-function cachedSearch(store: StoreId, query: string): Promise<ProductOffer[]> {
+function cachedSearch(store: StoreId, query: string): Promise<SearchResult> {
   const key = `${store}:${query}`;
   const hit = searchCache.get(key);
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.offers;
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.result;
 
-  const offers = STORES[store].search(query).catch((err: Error) => {
-    console.error(`[${store}] error buscando "${query}": ${err.message}`);
-    searchCache.delete(key);
-    return [];
-  });
-  searchCache.set(key, { at: Date.now(), offers });
-  return offers;
+  const result = STORES[store]
+    .search(query)
+    .then((offers) => ({ offers, ok: true }))
+    .catch((err: Error) => {
+      console.error(`[${store}] error buscando "${query}": ${err.message}`);
+      searchCache.delete(key);
+      return { offers: [], ok: false };
+    });
+  searchCache.set(key, { at: Date.now(), result });
+  return result;
 }
 
 export function getAllPromotions(): Promise<Promotion[]> {
@@ -73,7 +82,7 @@ export async function planForUser(request: PlanRequest): Promise<PlanResponse> {
   const allPromotions = await getAllPromotions();
   const promotions = allPromotions.filter((p) => isEligible(p, request.profile));
 
-  const storesFailed = new Set<StoreId>(stores);
+  const storesFailed = new Set<StoreId>();
   const matches: Partial<Record<StoreId, MatchedItem[]>> = {};
 
   await Promise.all(
@@ -88,13 +97,13 @@ export async function planForUser(request: PlanRequest): Promise<PlanResponse> {
           const query = item.queryBySite?.[store] ?? item.query;
           if (isBarcode(query)) {
             // A scanned EAN identifies one product: take the store's exact hit, no fuzzy matching.
-            const candidates = await cachedSearch(store, query);
-            if (candidates.length > 0) storesFailed.delete(store);
+            const { offers: candidates, ok } = await cachedSearch(store, query);
+            if (!ok) storesFailed.add(store);
             const hit = excludeOffers(candidates, item.excludedOfferIds).find((o) => o.inStock) ?? null;
             return { requested: item, offer: hit, score: hit ? 1 : 0, isSubstitute: false };
           }
-          const candidates = await cachedSearch(store, stripSizeForSearch(query));
-          if (candidates.length > 0) storesFailed.delete(store);
+          const { offers: candidates, ok } = await cachedSearch(store, stripSizeForSearch(query));
+          if (!ok) storesFailed.add(store);
           const match = pickBestOffer({ ...item, query }, excludeOffers(candidates, item.excludedOfferIds));
           return { ...match, requested: item };
         }),

@@ -64,6 +64,8 @@ export interface StoreStop {
 
 export interface OneStopOption {
   store: StoreId;
+  /** total plus, for each missing item, its cheapest price elsewhere: what ranks the options. */
+  estimatedTotal: number;
   day: PlanDay;
   found: number;
   missing: number;
@@ -247,7 +249,7 @@ function optimizeAssignment(input: PlannerInput, itemPlans: ItemPlan[]): Assignm
   return assignment;
 }
 
-function oneStopOptions(input: PlannerInput): OneStopOption[] {
+function oneStopOptions(input: PlannerInput, itemPlans: ItemPlan[]): OneStopOption[] {
   return (Object.keys(input.matches) as StoreId[])
     .map((store) => {
       let subtotal = 0;
@@ -259,8 +261,14 @@ function oneStopOptions(input: PlannerInput): OneStopOption[] {
         subtotal += lineCost(match.offer!, item.quantity);
       });
       const best = cheapestQuote(quoteBasket(store, subtotal, input.days, input.promotions, input.capUsage));
+      // A store missing an item isn't cheaper for it: you still have to buy it somewhere.
+      const missingCost = input.items.reduce(
+        (sum, _, i) => sum + (offerFor(input, store, i) ? 0 : (itemPlans[i].best?.cost ?? 0)),
+        0,
+      );
       return {
         store,
+        estimatedTotal: best.total + missingCost,
         day: best.day,
         found,
         missing: input.items.length - found,
@@ -270,10 +278,36 @@ function oneStopOptions(input: PlannerInput): OneStopOption[] {
       };
     })
     .filter((o) => o.found > 0)
-    .sort((a, b) => a.missing - b.missing || a.total - b.total);
+    .sort((a, b) => a.missing - b.missing || a.estimatedTotal - b.estimatedTotal);
 }
 
-export function planShopping(input: PlannerInput): PlanResult {
+/** A match costing this many times the cheapest store's is a different product (e.g. infant formula for "leche"). */
+const OUTLIER_RATIO = 3;
+
+function withoutOutliers(input: PlannerInput): PlannerInput {
+  const stores = Object.keys(input.matches) as StoreId[];
+  const matches: Partial<Record<StoreId, MatchedItem[]>> = {};
+  for (const store of stores) matches[store] = [...input.matches[store]!];
+
+  input.items.forEach((item, i) => {
+    const costs = stores
+      .map((store) => offerFor(input, store, i))
+      .filter((m): m is MatchedItem => m !== null)
+      .map((m) => lineCost(m.offer!, item.quantity));
+    if (costs.length < 2) return;
+    const cheapest = Math.min(...costs);
+    for (const store of stores) {
+      const match = offerFor(input, store, i);
+      if (match && lineCost(match.offer!, item.quantity) > cheapest * OUTLIER_RATIO) {
+        matches[store]![i] = { ...match, offer: null, score: 0 };
+      }
+    }
+  });
+  return { ...input, matches };
+}
+
+export function planShopping(rawInput: PlannerInput): PlanResult {
+  const input = withoutOutliers(rawInput);
   const items = input.items.map((_, i) => planItem(input, i));
   const assignment = optimizeAssignment(input, items);
   const stops = buildStops(input, assignment).sort(
@@ -287,6 +321,6 @@ export function planShopping(input: PlannerInput): PlanResult {
     notFound: assignment.map((s, i) => (s === null ? i : -1)).filter((i) => i >= 0),
     total: stops.reduce((sum, s) => sum + s.total, 0),
     listTotal: stops.reduce((sum, s) => sum + s.subtotal, 0),
-    oneStop: oneStopOptions(input),
+    oneStop: oneStopOptions(input, items),
   };
 }

@@ -31,4 +31,6 @@ export interface Promotion {
   sourceUrl?: string;
   notes?: string;
   origin?: "catalogo" | "coto-live" | "banco-live";
+  /** Raw issuer marker from the source (e.g. Coto's bank logo URL), kept to audit how `requires` was derived. */
+  issuerHint?: string;
 }

@@ -12,7 +12,11 @@ import { useSettings } from '../../lib/client/profile';
 import { applyReceipts, parseReceipts, type AppliedReceipt } from '../../lib/client/receipts';
 import { STORES, STORE_IDS } from '../../lib/stores/registry';
 
-const AUDIENCES = [{ id: 'jubilados', label: 'Soy jubilado/a o pensionado/a' }];
+const AUDIENCES = [
+  { id: 'plan-sueldo', label: 'Cobro el sueldo en uno de mis bancos' },
+  { id: 'comunidad-coto', label: 'Soy socio de Comunidad Coto (gratis)' },
+  { id: 'jubilados', label: 'Soy jubilado/a o pensionado/a' },
+];
 
 function toggle<T>(list: T[], value: T, on: boolean): T[] {
   return on ? [...new Set([...list, value])] : list.filter((v) => v !== value);

@@ -195,4 +195,18 @@ describe("planShopping", () => {
     expect(capPeriodKey(weekly, { date: "2026-10-19", dow: 1 })).toBe("w@2026-10-19");
     expect(capPeriodKey(promo({ id: "c", merchants: [], discountPct: 1, cap: { amount: 1, per: "compra" } }), DAYS[0])).toBeNull();
   });
+
+  it("drops matches priced like a different product", () => {
+    // Real case: Farmatodo matched "leche entera" to a $396.230 infant formula.
+    const list = items("leche entera");
+    const result = planShopping({
+      items: list,
+      matches: matchesFrom(list, { coto: [1939], dia: [1990], farmatodo: [396230] }),
+      promotions: [],
+      days: DAYS,
+    });
+
+    expect(result.items[0].options.map((o) => o.store)).toEqual(["coto", "dia"]);
+    expect(result.oneStop.map((o) => o.store)).toEqual(["coto", "dia"]);
+  });
 });

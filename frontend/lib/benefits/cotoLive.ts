@@ -11,6 +11,7 @@ interface CotoPromocion {
   dias: { descripcion: string }[];
   observacion: string | null;
   textoDescuento: string;
+  icono: string | null;
 }
 
 interface CotoPromosResponse {
@@ -67,6 +68,15 @@ function parseCap(text: string | null): number | undefined {
   return Number.isFinite(value) ? value : undefined;
 }
 
+/** Segments a Coto promo is restricted to, matching the toggles in "Mis medios". */
+export function audienceOf(text: string): string | undefined {
+  const t = normalizeText(text);
+  if (/\bjubilad/.test(t)) return "jubilados";
+  if (/\b(plan|cuenta) sueldo\b|\bhaberes\b/.test(t)) return "plan-sueldo";
+  if (/\bcomunidad\b/.test(t)) return "comunidad-coto";
+  return undefined;
+}
+
 function capPeriod(text: string | null): CapPeriod {
   if (/semana/i.test(text ?? "")) return "semana";
   if (/(compra|transacci|ticket)/i.test(text ?? "")) return "compra";
@@ -88,7 +98,10 @@ export async function fetchCotoLivePromotions(): Promise<Promotion[]> {
 
   return (json.result?.promocionesDigitales ?? []).flatMap((p, index): Promotion[] => {
     const discountPct = parsePct(p.textoDescuento);
-    const requires = detectRequiredSources(`${p.descripcion} ${p.observacion ?? ""}`);
+    // The bank is sometimes only in the logo's file name (".../bancos/galicia.png").
+    const logo = (p.icono ?? "").replace(/\.[a-z]+$/i, "").replace(/[^a-zA-Z]+/g, " ");
+    const text = `${p.descripcion} ${p.observacion ?? ""}`;
+    const requires = detectRequiredSources(`${text} ${logo}`);
     if (discountPct === null || requires === null) return [];
 
     const days = p.dias
@@ -110,6 +123,8 @@ export async function fetchCotoLivePromotions(): Promise<Promotion[]> {
         checkedAt: today,
         sourceUrl: "https://www.coto.com.ar/",
         notes: p.observacion ?? undefined,
+        audience: audienceOf(text),
+        issuerHint: p.icono ?? undefined,
         origin: "coto-live",
       },
     ];
