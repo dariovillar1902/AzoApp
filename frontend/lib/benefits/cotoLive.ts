@@ -37,7 +37,7 @@ const OTHER_ISSUERS = /\b(banco|credicoop|icbc|supervielle|hipotecario|comafi|br
  * has, and an issuer we don't model makes the promo unusable (`null`).
  */
 export function detectRequiredSources(text: string): string[] | null {
-  let remaining = ` ${normalizeText(text)} `;
+  let remaining = ` ${normalizeText(text).replace(/[.,]/g, " ")} `;
   const aliases = SOURCES.flatMap((s) => s.aliases.map((alias) => ({ alias, source: s })))
     // Longest first so "club la nacion" is consumed before "nacion".
     .sort((a, b) => b.alias.length - a.alias.length);
@@ -66,6 +66,33 @@ function parseCap(text: string | null): number | undefined {
   if (!match) return undefined;
   const value = parseFloat(match[1].replace(/\./g, "").replace(",", "."));
   return Number.isFinite(value) ? value : undefined;
+}
+
+/** Logos that don't name an issuer: Coto's own community program and the card networks. */
+const GENERIC_LOGO = /\b(comunidad|visa|master|mastercard|amex|american|express|todos|tarjetas)\b/;
+
+/**
+ * What a Coto promo requires. Coto describes most promos by card network only
+ * ("tarjetas crédito y débito Visa") and identifies the bank by its logo
+ * (logo_ciudad1.png, logo_patagonia2.png, logo_tci.png…). A logo naming an
+ * issuer we don't model — including Coto's own TCI card — means the promo
+ * isn't for the user (`null`), even when the text mentions only Visa.
+ */
+export function cotoRequiredSources(text: string, icono: string | null): string[] | null {
+  const logo = (icono ?? "")
+    .replace(/^.*\//, "")
+    .replace(/\.[a-z]+$/i, "")
+    .replace(/^logo/i, "")
+    .replace(/[^a-zA-Z]+/g, " ")
+    .trim()
+    .toLowerCase();
+  const fromLogo = logo ? detectRequiredSources(logo) : [];
+  if (fromLogo === null) return null;
+  const logoNamesIssuer = SOURCES.some((s) => s.kind !== "tarjeta" && fromLogo.includes(s.id));
+  if (logo && !logoNamesIssuer && !GENERIC_LOGO.test(logo)) return null;
+
+  // With the issuer named by the logo, other networks in the text ("Visa, Mastercard y Cabal") don't disqualify it.
+  return detectRequiredSources(logoNamesIssuer ? `${text} ${logo}` : text);
 }
 
 /** Segments a Coto promo is restricted to, matching the toggles in "Mis medios". */
@@ -98,10 +125,8 @@ export async function fetchCotoLivePromotions(): Promise<Promotion[]> {
 
   return (json.result?.promocionesDigitales ?? []).flatMap((p, index): Promotion[] => {
     const discountPct = parsePct(p.textoDescuento);
-    // The bank is sometimes only in the logo's file name (".../bancos/galicia.png").
-    const logo = (p.icono ?? "").replace(/\.[a-z]+$/i, "").replace(/[^a-zA-Z]+/g, " ");
     const text = `${p.descripcion} ${p.observacion ?? ""}`;
-    const requires = detectRequiredSources(`${text} ${logo}`);
+    const requires = cotoRequiredSources(text, p.icono);
     if (discountPct === null || requires === null) return [];
 
     const days = p.dias

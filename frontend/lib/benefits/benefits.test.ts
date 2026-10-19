@@ -73,3 +73,26 @@ describe("Coto live promo segments", () => {
     expect(audienceOf("En un pago con tarjetas crédito y débito Visa")).toBeUndefined();
   });
 });
+
+describe("cotoRequiredSources (real Coto entries, 19/10/2026)", () => {
+  it("reads the bank from the logo", async () => {
+    const { cotoRequiredSources } = await import("./cotoLive");
+    expect(cotoRequiredSources("En un pago con tarjetas de crédito Visa, Mastercard y Cabal", "logo_ciudad1.png")?.sort()).toEqual(
+      ["ciudad", "mastercard", "visa"],
+    );
+    expect(cotoRequiredSources("En un pago con tarjetas crédito y débito Visa", "logo_patagonia2.png")?.sort()).toEqual(["patagonia", "visa"]);
+  });
+
+  it("drops promos for issuers the user can't have, even when the text only says Visa", async () => {
+    const { cotoRequiredSources } = await import("./cotoLive");
+    expect(cotoRequiredSources("En un pago con tarjetas de crédito TCI", "logo_tci.png")).toBeNull();
+    expect(cotoRequiredSources("En un pago con tarjetas crédito y débito Visa", "logo_hipotecario.png")).toBeNull();
+    expect(cotoRequiredSources("En un pago con tarjetas crédito y débito Visa", "logo_bancoxyz.png")).toBeNull();
+  });
+
+  it("keeps generic and community promos", async () => {
+    const { cotoRequiredSources } = await import("./cotoLive");
+    expect(cotoRequiredSources("En un pago si sos miembro DE NUESTRA COMUNIDAD", "logo_comunidad.png")).toEqual([]);
+    expect(cotoRequiredSources("En un pago con tarjetas Visa", null)).toEqual(["visa"]);
+  });
+});
