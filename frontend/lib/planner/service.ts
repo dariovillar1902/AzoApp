@@ -1,5 +1,6 @@
 import { CATALOG } from "../benefits/catalog";
 import { fetchCotoLivePromotions } from "../benefits/cotoLive";
+import { fetchScrapedPromotions } from "../benefits/scrapedPromos";
 import { isEligible, upcomingDays, type CapUsage, type UserProfile } from "../benefits/eligibility";
 import type { PromoCategory, Promotion } from "../benefits/types";
 import { excludeOffers } from "../core/exclusions";
@@ -30,9 +31,10 @@ function cachedSearch(store: StoreId, query: string): Promise<ProductOffer[]> {
 
 export function getAllPromotions(): Promise<Promotion[]> {
   if (!cotoPromosCache || Date.now() - cotoPromosCache.at > CACHE_TTL_MS) {
-    const promos = fetchCotoLivePromotions()
-      .catch(() => [] as Promotion[])
-      .then((live) => [...CATALOG, ...live]);
+    const promos = Promise.all([
+      fetchCotoLivePromotions().catch(() => [] as Promotion[]),
+      fetchScrapedPromotions().catch(() => [] as Promotion[]),
+    ]).then(([coto, banks]) => [...CATALOG, ...coto, ...banks]);
     cotoPromosCache = { at: Date.now(), promos };
   }
   return cotoPromosCache.promos;

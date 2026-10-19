@@ -6,6 +6,8 @@ import type { PromoCategory, Promotion } from '../../lib/benefits/types';
 import { apiOrigin } from '../../lib/client/api';
 import { dayLabel, merchantName, money, promoConditions, promoHeadline } from '../../lib/client/format';
 import { useSettings } from '../../lib/client/profile';
+import { cancelReminders, reminderMessage, remindPromoWeekly } from '../../lib/client/reminders';
+import { Ionicons } from '@expo/vector-icons';
 
 const CATEGORIES: { id: PromoCategory | 'todas'; label: string }[] = [
   { id: 'todas', label: 'Todas' },
@@ -22,6 +24,7 @@ export default function WeekScreen() {
   const [promotions, setPromotions] = useState<Promotion[] | null>(null);
   const [updated, setUpdated] = useState('');
   const [error, setError] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`${apiOrigin()}/api/promos`)
@@ -65,6 +68,13 @@ export default function WeekScreen() {
             ))}
           </View>
 
+          {notice ? (
+            <Pressable onPress={() => setNotice(null)}>
+              <Card style={{ backgroundColor: colors.goodBg }}>
+                <Text style={{ color: colors.good, fontWeight: '600' }}>{notice}</Text>
+              </Card>
+            </Pressable>
+          ) : null}
           {error ? <Text style={styles.empty}>No se pudieron cargar las promos.</Text> : null}
           {!promotions && !error ? <ActivityIndicator style={{ marginTop: 32 }} color={colors.brand} /> : null}
           {promotions && visible.length === 0 ? <Text style={styles.empty}>Ninguna promo con tus medios este día.</Text> : null}
@@ -73,6 +83,7 @@ export default function WeekScreen() {
             <Card key={p.id}>
               <View style={styles.cardTop}>
                 <Text style={styles.merchants}>{p.merchants.map(merchantName).join(' · ')}</Text>
+                <ReminderBell promo={p} onMessage={setNotice} />
                 <Badge label={`${p.discountPct}%`} tone="good" />
               </View>
               <Text style={styles.headline}>{promoHeadline(p)}</Text>
@@ -83,6 +94,7 @@ export default function WeekScreen() {
               <View style={styles.cardBottom}>
                 {expiresSoon(p, days) ? <Badge label={`Vence ${p.validUntil!.split('-').reverse().slice(0, 2).join('/')}`} tone="warn" /> : null}
                 {p.origin === 'coto-live' ? <Badge label="En vivo de Coto" tone="brand" /> : null}
+                {p.origin === 'banco-live' ? <Badge label="Del sitio del banco" tone="brand" /> : null}
                 {p.confidence === 'verificar' ? <Badge label="Verificar" tone="warn" /> : <Badge label="Confirmada" tone="brand" />}
                 {p.sourceUrl ? (
                   <Pressable onPress={() => Linking.openURL(p.sourceUrl!)}>
@@ -95,6 +107,32 @@ export default function WeekScreen() {
         </View>
       </ScrollView>
     </View>
+  );
+}
+
+/** Weekly 9:00 reminder on the promo's days; tap again to cancel. */
+function ReminderBell({ promo, onMessage }: { promo: Promotion; onMessage: (text: string) => void }) {
+  const { settings, update } = useSettings();
+  const ids = settings.promoReminders[promo.id];
+
+  const toggle = async () => {
+    const { [promo.id]: _, ...others } = settings.promoReminders;
+    if (ids) {
+      await cancelReminders(ids).catch(() => {});
+      update({ promoReminders: others });
+      onMessage('Recordatorio cancelado.');
+      return;
+    }
+    const title = `${promo.discountPct}% en ${promo.merchants.map(merchantName).join(', ')}`;
+    const { result, ids: scheduled } = await remindPromoWeekly(promo, title, promoHeadline(promo)).catch(() => ({ result: 'unsupported' as const, ids: [] }));
+    if (result === 'scheduled') update({ promoReminders: { ...others, [promo.id]: scheduled } });
+    onMessage(reminderMessage(result, 'cada semana ese día'));
+  };
+
+  return (
+    <Pressable onPress={toggle} hitSlop={8} style={{ marginTop: 2 }}>
+      <Ionicons name={ids ? 'notifications' : 'notifications-outline'} size={20} color={ids ? colors.brand : colors.faint} />
+    </Pressable>
   );
 }
 

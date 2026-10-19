@@ -8,8 +8,10 @@ import { offerKey } from '../../lib/core/exclusions';
 import { normalizeText } from '../../lib/core/normalize';
 import { apiOrigin } from '../../lib/client/api';
 import { dayLabel, merchantName, money, promoConditions, promoHeadline } from '../../lib/client/format';
-import { usePersistentState, useSettings, type Refinement } from '../../lib/client/profile';
+import { usePersistentJson, usePersistentState, useSettings, type Refinement } from '../../lib/client/profile';
+import { priceInsight, recordPlan, type PriceHistory } from '../../lib/client/priceHistory';
 import { planToText } from '../../lib/client/shareText';
+import { reminderMessage, remindVisit } from '../../lib/client/reminders';
 import { parseShoppingList } from '../../lib/planner/parseList';
 import type { PlanResponse } from '../../lib/planner/service';
 import { storeName } from '../../lib/stores/registry';
@@ -33,6 +35,7 @@ export default function ListScreen() {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [picking, setPicking] = useState<(AlternativesTarget & { itemQuery: string }) | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [history, updateHistory] = usePersistentJson<PriceHistory>('azoapp.prices.v1', {});
 
   // `refinements` is passed explicitly after a correction because settings update asynchronously.
   const runPlan = async (refinements = settings.refinements) => {
@@ -56,6 +59,7 @@ export default function ListScreen() {
       if (!response.ok) throw new Error(json.error ?? 'Error al planificar');
       setPlan(json);
       setChecked(new Set());
+      updateHistory((prev) => recordPlan(prev, json, json.days[0].date));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo conectar con el servidor');
     } finally {
@@ -91,6 +95,15 @@ export default function ListScreen() {
       setNotice(`Registrado: usaste ${money(applied.discount)} del tope de ${promoHeadline(applied.promotion)}.`);
     }
     setChecked((prev) => new Set([...prev, ...stop.lines.map((l) => `${stop.store}:${l.itemIndex}`)]));
+  };
+
+  const remind = async (stop: Stop) => {
+    const promo = stop.promotion;
+    const body = promo
+      ? `${promoHeadline(promo.promotion)}${promo.promotion.payment ? ` · ${promo.promotion.payment}` : ''}. Ahorro ${money(promo.discount)}.`
+      : `${stop.lines.length} productos, ${money(stop.total)}.`;
+    const result = await remindVisit(stop.day, `Hoy: ${storeName(stop.store)}`, body).catch(() => 'unsupported' as const);
+    setNotice(reminderMessage(result, `el ${dayLabel(stop.day, plan!.days)}`));
   };
 
   const share = async () => {
@@ -171,6 +184,7 @@ export default function ListScreen() {
           {plan ? (
             <PlanView
               plan={plan}
+              history={history}
               checked={checked}
               onToggleCheck={toggleCheck}
               onReject={rejectLine}
@@ -183,6 +197,7 @@ export default function ListScreen() {
                 })
               }
               onBought={recordPurchase}
+              onRemind={remind}
               onShare={share}
               onResetRefinements={Object.keys(settings.refinements).length > 0 ? resetRefinements : undefined}
             />
@@ -196,16 +211,18 @@ export default function ListScreen() {
 
 interface PlanViewProps {
   plan: PlanResponse;
+  history: PriceHistory;
   checked: Set<string>;
   onToggleCheck: (key: string) => void;
   onReject: (line: Line) => void;
   onChoose: (stop: Stop, line: Line) => void;
   onBought: (stop: Stop) => void;
+  onRemind: (stop: Stop) => void;
   onShare: () => void;
   onResetRefinements?: () => void;
 }
 
-function PlanView({ plan, checked, onToggleCheck, onReject, onChoose, onBought, onShare, onResetRefinements }: PlanViewProps) {
+function PlanView({ plan, history, checked, onToggleCheck, onReject, onChoose, onBought, onRemind, onShare, onResetRefinements }: PlanViewProps) {
   const savings = plan.listTotal - plan.total;
   const failed = plan.storesFailed.length;
 
@@ -282,6 +299,7 @@ function PlanView({ plan, checked, onToggleCheck, onReject, onChoose, onBought, 
                       {line.offer.name}
                     </Text>
                   </Pressable>
+                  <PriceNote insight={priceInsight(history, line.offer, plan.days[0].date)} />
                   {done ? null : (
                     <View style={styles.lineActions}>
                       <Pressable onPress={() => onReject(line)} hitSlop={6}>
@@ -300,10 +318,18 @@ function PlanView({ plan, checked, onToggleCheck, onReject, onChoose, onBought, 
 
           <OtherDays stop={stop} days={plan.days} />
 
-          <Pressable onPress={() => onBought(stop)} style={styles.boughtButton}>
-            <Ionicons name="bag-check-outline" size={16} color={colors.brand} />
-            <Text style={styles.boughtText}>Ya compré acá</Text>
-          </Pressable>
+          <View style={styles.stopActions}>
+            {stop.day.date !== plan.days[0].date ? (
+              <Pressable onPress={() => onRemind(stop)} style={styles.boughtButton}>
+                <Ionicons name="notifications-outline" size={16} color={colors.brand} />
+                <Text style={styles.boughtText}>Recordarme</Text>
+              </Pressable>
+            ) : null}
+            <Pressable onPress={() => onBought(stop)} style={styles.boughtButton}>
+              <Ionicons name="bag-check-outline" size={16} color={colors.brand} />
+              <Text style={styles.boughtText}>Ya compré acá</Text>
+            </Pressable>
+          </View>
         </Card>
       ))}
 
@@ -366,6 +392,19 @@ function PlanView({ plan, checked, onToggleCheck, onReject, onChoose, onBought, 
   );
 }
 
+function PriceNote({ insight }: { insight: ReturnType<typeof priceInsight> }) {
+  const parts: string[] = [];
+  if (insight.changePct !== undefined) parts.push(insight.changePct > 0 ? `↑ subió ${insight.changePct}%` : `↓ bajó ${-insight.changePct}%`);
+  if (insight.lowest) parts.push(`mín. visto ${money(insight.lowest.price)} el ${insight.lowest.date.slice(8)}/${insight.lowest.date.slice(5, 7)}`);
+  if (parts.length === 0 && !insight.inflatedListPrice) return null;
+  return (
+    <Text style={styles.priceNote}>
+      {parts.join(' · ')}
+      {insight.inflatedListPrice ? <Text style={styles.verify}>{parts.length ? ' · ' : ''}⚠ "precio antes" inflado</Text> : null}
+    </Text>
+  );
+}
+
 function OtherDays({ stop, days }: { stop: PlanResponse['stops'][number]; days: PlanResponse['days'] }) {
   const [open, setOpen] = useState(false);
   const differs = stop.byDay.some((q) => Math.abs(q.total - stop.total) > 0.5);
@@ -412,10 +451,12 @@ const styles = StyleSheet.create({
   verify: { color: colors.warn, fontSize: 12, fontWeight: '600' },
   line: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#f1f5f9', marginTop: 8 },
   check: { marginRight: 8, marginTop: 1 },
+  priceNote: { color: colors.muted, fontSize: 11, marginTop: 2 },
   done: { textDecorationLine: 'line-through', color: colors.faint },
   lineActions: { flexDirection: 'row', gap: 14, marginTop: 4 },
   lineAction: { color: colors.brand, fontSize: 12, fontWeight: '600' },
-  boughtButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: '#eff6ff' },
+  stopActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  boughtButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, borderRadius: 10, backgroundColor: '#eff6ff' },
   boughtText: { color: colors.brand, fontWeight: '700', fontSize: 13 },
   summaryActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   summaryAction: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.12)', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999 },

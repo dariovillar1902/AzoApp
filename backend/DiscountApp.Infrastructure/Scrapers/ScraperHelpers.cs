@@ -34,13 +34,17 @@ public static class ScraperHelpers
 
     /// <summary>
     /// Returns known store names found in the given text (case-insensitive).
+    /// Matches whole words only, so "todos los días" doesn't count as the store "Día".
     /// </summary>
     public static List<string> ExtractStores(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return [];
 
         return KnownStores
-            .Where(store => text.Contains(store, StringComparison.OrdinalIgnoreCase))
+            .Where(store => Regex.IsMatch(
+                text,
+                $@"(?<![\p{{L}}\p{{N}}]){Regex.Escape(store)}(?![\p{{L}}\p{{N}}])",
+                RegexOptions.IgnoreCase))
             .Distinct()
             .ToList();
     }

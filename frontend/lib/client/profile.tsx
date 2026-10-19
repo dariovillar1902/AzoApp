@@ -14,6 +14,8 @@ export interface Settings extends UserProfile {
   capUsage: CapUsage;
   /** Corrections to automatic matches, keyed by the normalized item text. */
   refinements: Record<string, Refinement>;
+  /** Scheduled weekly notification ids per promo id. */
+  promoReminders: Record<string, string[]>;
 }
 
 export interface Refinement {
@@ -28,6 +30,7 @@ const DEFAULT_SETTINGS: Settings = {
   fewerStops: true,
   capUsage: {},
   refinements: {},
+  promoReminders: {},
 };
 
 const STORAGE_KEY = "azoapp.settings.v1";
@@ -73,4 +76,21 @@ export function usePersistentState(key: string, initial: string): [string, (valu
     AsyncStorage.setItem(key, next).catch(() => {});
   };
   return [value, set];
+}
+
+/** JSON value remembered across launches (best-effort). */
+export function usePersistentJson<T>(key: string, initial: T): [T, (update: (prev: T) => T) => void] {
+  const [value, setValue] = useState<T>(initial);
+  useEffect(() => {
+    AsyncStorage.getItem(key)
+      .then((stored) => stored !== null && setValue(JSON.parse(stored)))
+      .catch(() => {});
+  }, [key]);
+  const update = (fn: (prev: T) => T) =>
+    setValue((prev) => {
+      const next = fn(prev);
+      AsyncStorage.setItem(key, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  return [value, update];
 }

@@ -30,5 +30,5 @@ export interface Promotion {
   checkedAt: string;
   sourceUrl?: string;
   notes?: string;
-  origin?: "catalogo" | "coto-live";
+  origin?: "catalogo" | "coto-live" | "banco-live";
 }
