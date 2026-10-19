@@ -82,6 +82,7 @@ namespace DiscountApp.Infrastructure.Scrapers
                         Currency = amountText?.Contains("%") == true ? "%" : "$",
                         Url = href?.StartsWith("http") == true ? href : $"https://club.lanacion.com.ar{href}",
                         ImageUrl = imgUrl,
+                        ValidDays = ScraperHelpers.ExtractValidDays(title),
                         Stores = stores.Count > 0 ? stores : null
                     });
                 }

@@ -1,6 +1,6 @@
 import { View, Text, FlatList, ActivityIndicator, Image, Pressable, StatusBar, StyleSheet, Platform, Dimensions, TextInput, Alert } from 'react-native';
 import { useEffect, useState, useMemo } from 'react';
-import { API_URL } from '../constants/Config';
+import { API_URL } from '../../constants/Config';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -143,8 +143,8 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.welcomeText}>Bienvenido</Text>
-            <Text style={styles.appTitle}>Beneficios</Text>
+            <Text style={styles.welcomeText}>Beneficios de bancos y clubes</Text>
+            <Text style={styles.appTitle}>Explorar</Text>
           </View>
           <Pressable
             onPress={triggerScrape}
