@@ -73,4 +73,32 @@ describe("planForUser", () => {
 
     expect(result.stops.find((s) => s.store === "farmacity")?.lines[0].offer.name).toContain("Ibuprofeno");
   });
+
+  it("skips offers the user rejected and uses a per-store query when given", async () => {
+    const searched: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string) => {
+        const query = new URL(input).searchParams.get("ft") ?? "";
+        searched.push(query);
+        return Response.json(
+          vtex([
+            ["Leche Entera La Serenísima 1 L", 1500],
+            ["Leche Entera Sancor 1 L", 1300],
+          ]),
+        );
+      }),
+    );
+
+    const result = await planForUser({
+      items: [{ query: "leche entera 1l sin marca", quantity: 1, excludedOfferIds: ["dia:1-1"], queryBySite: { dia: "leche serenisima" } }],
+      profile: { sources: [] },
+      stores: ["dia"],
+      now: new Date("2026-10-22T13:00:00Z"),
+    });
+
+    expect(searched).toEqual(["leche serenisima"]);
+    expect(result.stops[0].lines[0].offer.name).toBe("Leche Entera La Serenísima 1 L");
+    expect(result.items[0].item.query).toBe("leche entera 1l sin marca");
+  });
 });

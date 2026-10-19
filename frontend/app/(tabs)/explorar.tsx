@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { API_URL } from '../../constants/Config';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSettings } from '../../lib/client/profile';
 
 interface Discount {
   id: number;
@@ -15,7 +16,17 @@ interface Discount {
   stores: string[] | null;
 }
 
-const BANKS = ["All", "Banco Nación", "Club La Nacion", "BBVA", "Santander", "Banco Ciudad", "Swiss Medical"];
+const MINE = "Mis medios";
+const BANKS = [MINE, "All", "Banco Nación", "Club La Nacion", "BBVA", "Santander", "Banco Ciudad", "Swiss Medical"];
+
+/** Backend scraper names → source ids from lib/benefits/sources. */
+const BANK_SOURCE: Record<string, string> = {
+  "Banco Nación": "nacion",
+  "Club La Nacion": "clublanacion",
+  BBVA: "bbva",
+  Santander: "santander",
+  "Banco Ciudad": "ciudad",
+};
 
 const { width } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
@@ -24,7 +35,8 @@ const numColumns = isWeb ? (width > 800 ? 3 : 2) : 1;
 export default function HomeScreen() {
   const [discounts, setDiscounts] = useState<Discount[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedBank, setSelectedBank] = useState("All");
+  const [selectedBank, setSelectedBank] = useState(MINE);
+  const { settings } = useSettings();
   const [searchQuery, setSearchQuery] = useState("");
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [scraping, setScraping] = useState(false);
@@ -40,7 +52,7 @@ export default function HomeScreen() {
       let url = `${API_URL}/api/discounts`;
       // We fetch all or filter by bank on backend. 
       // Search is client-side for responsivness on small datasets.
-      if (selectedBank !== "All") {
+      if (selectedBank !== "All" && selectedBank !== MINE) {
         url += `?bank=${encodeURIComponent(selectedBank)}`;
       }
       const response = await fetch(url);
@@ -74,14 +86,17 @@ export default function HomeScreen() {
   };
 
   const filteredDiscounts = useMemo(() => {
-    if (!searchQuery) return discounts;
+    const mine = selectedBank === MINE
+      ? discounts.filter(d => settings.sources.includes(BANK_SOURCE[d.bankName]))
+      : discounts;
+    if (!searchQuery) return mine;
     const lower = searchQuery.toLowerCase();
-    return discounts.filter(d => 
+    return mine.filter(d => 
         d.title.toLowerCase().includes(lower) || 
         d.category.toLowerCase().includes(lower) ||
         d.bankName.toLowerCase().includes(lower)
     );
-  }, [discounts, searchQuery]);
+  }, [discounts, searchQuery, selectedBank, settings.sources]);
 
   const renderItem = ({ item }: { item: Discount }) => (
     <Pressable 

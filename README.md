@@ -21,10 +21,18 @@ el scraper de beneficios bancarios que ya tenía este repo.
     categoría que te corresponden.
   - "Menos paradas" (activado por defecto) solo agrega una tienda si ahorra
     más de $3.000.
+  - Si eligió mal un producto: **✗ No es esto** lo descarta y vuelve a
+    planificar; **Elegir otro** muestra lo que vende esa cadena para que
+    elijas a mano. Las correcciones se recuerdan ("Deshacer correcciones"
+    las borra).
+  - Checklist para tildar en el súper, **Ya compré acá** (descuenta lo
+    usado del tope de esa promo) y **Compartir** (texto para WhatsApp).
 - **Semana**: tus promos día por día (súper, farmacia, nafta), con topes,
-  mínimos, cómo pagar, vigencia y la fuente.
+  mínimos, cómo pagar, vigencia y la fuente. En las que tienen tope
+  mensual/semanal ves cuánto te queda y podés corregirlo ("Editar").
 - **Explorar**: los beneficios que scrapea el backend .NET (Santander,
-  Ciudad, Nación, Club La Nación, BBVA, Swiss Medical).
+  Ciudad, Nación, Club La Nación, BBVA, Swiss Medical), filtrados por
+  defecto a tus medios.
 - **Mis medios**: qué bancos/tarjetas/billeteras tenés, segmentos
   (jubilados) y en qué cadenas comparar. Se guarda en el dispositivo.
 
@@ -42,8 +50,9 @@ el scraper de beneficios bancarios que ya tenía este repo.
    Día para superar el mínimo de $35.000 de BNA+ MODO aunque cada ítem por
    separado sea más barato en otro lado.
 
-Los topes mensuales/semanales se toman como disponibles enteros (la app no
-sabe cuánto ya usaste).
+Un tope mensual/semanal es un solo presupuesto para todo el plan (dos
+farmacias con la misma promo MODO no reciben el tope completo cada una), y
+se le resta lo que ya registraste como usado.
 
 ## Promociones
 
@@ -63,6 +72,7 @@ frontend/                 Expo (iOS/Android/web) + API routes
   app/(tabs)/             pantallas
   app/api/plan+api.ts     POST: lista -> plan
   app/api/promos+api.ts   GET: catálogo + promos en vivo de Coto
+  app/api/alternatives+api.ts  GET: productos de una cadena para elegir a mano
   lib/core/               normalización y matching de productos
   lib/stores/             buscadores por cadena (VTEX, Coto, Farmatodo)
   lib/benefits/           medios, catálogo, elegibilidad

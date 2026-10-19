@@ -1,7 +1,8 @@
 import { CATALOG } from "../benefits/catalog";
 import { fetchCotoLivePromotions } from "../benefits/cotoLive";
-import { isEligible, upcomingDays, type UserProfile } from "../benefits/eligibility";
+import { isEligible, upcomingDays, type CapUsage, type UserProfile } from "../benefits/eligibility";
 import type { PromoCategory, Promotion } from "../benefits/types";
+import { excludeOffers } from "../core/exclusions";
 import { pickBestOffer } from "../core/matching";
 import { normalizeText, stripSizeForSearch } from "../core/normalize";
 import { STORE_IDS, STORES } from "../stores/registry";
@@ -49,6 +50,7 @@ export interface PlanRequest {
   profile: UserProfile;
   stores?: StoreId[];
   storePenalty?: number;
+  capUsage?: CapUsage;
   now?: Date;
 }
 
@@ -75,9 +77,12 @@ export async function planForUser(request: PlanRequest): Promise<PlanResponse> {
           if (categoryHintFor(item.query) === "combustible") {
             return { requested: item, offer: null, score: 0, isSubstitute: false };
           }
-          const candidates = await cachedSearch(store, stripSizeForSearch(item.query));
+          // A product the user picked by hand on this store replaces the query for this store only.
+          const query = item.queryBySite?.[store] ?? item.query;
+          const candidates = await cachedSearch(store, stripSizeForSearch(query));
           if (candidates.length > 0) storesFailed.delete(store);
-          return pickBestOffer(item, candidates);
+          const match = pickBestOffer({ ...item, query }, excludeOffers(candidates, item.excludedOfferIds));
+          return { ...match, requested: item };
         }),
       );
     }),
@@ -89,6 +94,7 @@ export async function planForUser(request: PlanRequest): Promise<PlanResponse> {
     promotions,
     days: upcomingDays(request.now),
     storePenalty: request.storePenalty,
+    capUsage: request.capUsage,
   });
 
   const hints: Record<number, Promotion[]> = {};

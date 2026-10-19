@@ -1,4 +1,4 @@
-import { bestPromotion, type AppliedPromotion, type PlanDay } from "../benefits/eligibility";
+import { bestPromotion, capPeriodKey, type AppliedPromotion, type CapUsage, type PlanDay } from "../benefits/eligibility";
 import type { Promotion } from "../benefits/types";
 import type { MatchedItem, ProductOffer, ShoppingListItem, StoreId } from "../types";
 
@@ -12,6 +12,8 @@ export interface PlannerInput {
   days: PlanDay[];
   /** ARS an extra store visit is "worth" to the user; 0 = only price matters. */
   storePenalty?: number;
+  /** What the user already used of each monthly/weekly cap (see capPeriodKey). */
+  capUsage?: CapUsage;
 }
 
 export interface ItemOption {
@@ -90,9 +92,15 @@ function lineCost(offer: ProductOffer, quantity: number): number {
   return unit * quantity;
 }
 
-function quoteBasket(store: StoreId, subtotal: number, days: PlanDay[], promotions: Promotion[]): DayQuote[] {
+function quoteBasket(
+  store: StoreId,
+  subtotal: number,
+  days: PlanDay[],
+  promotions: Promotion[],
+  used: CapUsage = {},
+): DayQuote[] {
   return days.map((day) => {
-    const promotion = bestPromotion(store, subtotal, day, promotions);
+    const promotion = bestPromotion(store, subtotal, day, promotions, used);
     return { day, promotion, total: subtotal - (promotion?.discount ?? 0) };
   });
 }
@@ -117,7 +125,7 @@ function planItem(input: PlannerInput, index: number): ItemPlan {
     if (!match) continue;
     const offer = match.offer!;
     const listCost = lineCost(offer, item.quantity);
-    const quotes = quoteBasket(store, listCost, input.days, input.promotions);
+    const quotes = quoteBasket(store, listCost, input.days, input.promotions, input.capUsage);
     const toOption = (q: DayQuote): ItemOption => ({
       store,
       offer,
@@ -156,10 +164,24 @@ function buildStops(input: PlannerInput, assignment: Assignment): StoreStop[] {
     byStore.set(store, lines);
   });
 
-  return [...byStore.entries()].map(([store, lines]) => {
+  // A monthly/weekly cap is one budget for the whole trip: Farmacity and
+  // Farmaplus on the same MODO promo can't both get the full tope. Visits
+  // that stand to save the most claim their promo first.
+  const baskets = [...byStore.entries()].map(([store, lines]) => {
     const subtotal = lines.reduce((sum, l) => sum + l.listCost, 0);
-    const byDay = quoteBasket(store, subtotal, input.days, input.promotions);
+    const standalone = cheapestQuote(quoteBasket(store, subtotal, input.days, input.promotions, input.capUsage));
+    return { store, lines, subtotal, potential: subtotal - standalone.total };
+  });
+  baskets.sort((a, b) => b.potential - a.potential);
+
+  const used: CapUsage = { ...input.capUsage };
+  return baskets.map(({ store, lines, subtotal }) => {
+    const byDay = quoteBasket(store, subtotal, input.days, input.promotions, used);
     const chosen = cheapestQuote(byDay);
+    if (chosen.promotion) {
+      const key = capPeriodKey(chosen.promotion.promotion, chosen.day);
+      if (key) used[key] = (used[key] ?? 0) + chosen.promotion.discount;
+    }
     return { store, day: chosen.day, lines, subtotal, promotion: chosen.promotion, total: chosen.total, byDay };
   });
 }
@@ -236,7 +258,7 @@ function oneStopOptions(input: PlannerInput): OneStopOption[] {
         found++;
         subtotal += lineCost(match.offer!, item.quantity);
       });
-      const best = cheapestQuote(quoteBasket(store, subtotal, input.days, input.promotions));
+      const best = cheapestQuote(quoteBasket(store, subtotal, input.days, input.promotions, input.capUsage));
       return {
         store,
         day: best.day,

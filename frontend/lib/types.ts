@@ -42,6 +42,10 @@ export interface ShoppingListItem {
   quantity: number;
   /** Opaque client-side identifier, echoed back untouched in the results. */
   id?: string;
+  /** Offer keys (see `offerKey`) the user flagged as "not what I asked for"; never picked for this item. */
+  excludedOfferIds?: string[];
+  /** Per-store replacement for `query`, e.g. the exact name of a product the user picked there. */
+  queryBySite?: Partial<Record<StoreId, string>>;
 }
 
 export interface MatchedItem {

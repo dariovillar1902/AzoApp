@@ -52,11 +52,39 @@ export function isActiveOn(promo: Promotion, day: PlanDay): boolean {
   return true;
 }
 
-/** Discount in ARS for spending `amount` in one purchase; 0 when below the minimum purchase. */
-export function discountFor(promo: Promotion, amount: number): number {
+/**
+ * Discount in ARS for spending `amount` in one purchase; 0 when below the
+ * minimum purchase. `capLeft` overrides the cap when part of it is used up.
+ */
+export function discountFor(promo: Promotion, amount: number, capLeft?: number): number {
   if (promo.minPurchase && amount < promo.minPurchase) return 0;
   const raw = amount * (promo.discountPct / 100);
-  return promo.cap ? Math.min(raw, promo.cap.amount) : raw;
+  const cap = capLeft ?? promo.cap?.amount;
+  return cap === undefined ? raw : Math.max(0, Math.min(raw, cap));
+}
+
+/**
+ * Which cap window a purchase on `day` counts against: "2026-10" for monthly
+ * caps, the Monday of that week for weekly ones. Per-purchase caps (and
+ * uncapped promos) never accumulate, so they have no key.
+ */
+export function capPeriodKey(promo: Promotion, day: PlanDay): string | null {
+  if (promo.cap?.per === "mes") return `${promo.id}@${day.date.slice(0, 7)}`;
+  if (promo.cap?.per === "semana") {
+    const [y, m, d] = day.date.split("-").map(Number);
+    const monday = new Date(Date.UTC(y, m - 1, d - ((day.dow + 6) % 7)));
+    return `${promo.id}@${monday.toISOString().slice(0, 10)}`;
+  }
+  return null;
+}
+
+/** ARS of each cap window already used, keyed by `capPeriodKey`. */
+export type CapUsage = Record<string, number>;
+
+export function capLeft(promo: Promotion, day: PlanDay, used: CapUsage): number | undefined {
+  const key = capPeriodKey(promo, day);
+  if (!key || !promo.cap) return undefined;
+  return Math.max(0, promo.cap.amount - (used[key] ?? 0));
 }
 
 export interface AppliedPromotion {
@@ -65,19 +93,21 @@ export interface AppliedPromotion {
 }
 
 /**
- * Best single promotion for spending `amount` at `merchant` on `day`. Bank
- * promos don't stack, so we never add two together.
+ * Best single promotion for spending `amount` at `merchant` on `day`, given
+ * what's already used of each cap. Bank promos don't stack, so we never add
+ * two together.
  */
 export function bestPromotion(
   merchant: string,
   amount: number,
   day: PlanDay,
   promotions: Promotion[],
+  used: CapUsage = {},
 ): AppliedPromotion | null {
   let best: AppliedPromotion | null = null;
   for (const promotion of promotions) {
     if (!promotion.merchants.includes(merchant) || !isActiveOn(promotion, day)) continue;
-    const discount = discountFor(promotion, amount);
+    const discount = discountFor(promotion, amount, capLeft(promotion, day, used));
     if (discount > 0 && (!best || discount > best.discount)) best = { promotion, discount };
   }
   return best;

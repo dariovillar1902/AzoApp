@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Badge, Card, colors, Header } from '../../components/ui';
-import { isActiveOn, isEligible, upcomingDays } from '../../lib/benefits/eligibility';
+import { capPeriodKey, isActiveOn, isEligible, upcomingDays, type PlanDay } from '../../lib/benefits/eligibility';
 import type { PromoCategory, Promotion } from '../../lib/benefits/types';
 import { apiOrigin } from '../../lib/client/api';
-import { dayLabel, merchantName, promoConditions, promoHeadline } from '../../lib/client/format';
+import { dayLabel, merchantName, money, promoConditions, promoHeadline } from '../../lib/client/format';
 import { useSettings } from '../../lib/client/profile';
 
 const CATEGORIES: { id: PromoCategory | 'todas'; label: string }[] = [
@@ -79,7 +79,9 @@ export default function WeekScreen() {
               {p.payment ? <Text style={styles.detail}>{p.payment}</Text> : null}
               <Text style={styles.detail}>{promoConditions(p)}</Text>
               {p.notes ? <Text style={styles.detail}>{p.notes}</Text> : null}
+              <CapMeter promo={p} day={days[dayIndex]} />
               <View style={styles.cardBottom}>
+                {expiresSoon(p, days) ? <Badge label={`Vence ${p.validUntil!.split('-').reverse().slice(0, 2).join('/')}`} tone="warn" /> : null}
                 {p.origin === 'coto-live' ? <Badge label="En vivo de Coto" tone="brand" /> : null}
                 {p.confidence === 'verificar' ? <Badge label="Verificar" tone="warn" /> : <Badge label="Confirmada" tone="brand" />}
                 {p.sourceUrl ? (
@@ -92,6 +94,50 @@ export default function WeekScreen() {
           ))}
         </View>
       </ScrollView>
+    </View>
+  );
+}
+
+/** Ends within the week shown: worth using before it's gone. */
+function expiresSoon(p: Promotion, days: PlanDay[]): boolean {
+  return p.validUntil !== undefined && p.validUntil <= days[days.length - 1].date;
+}
+
+/** How much of a monthly/weekly cap is left, editable so the planner knows what was already used. */
+function CapMeter({ promo, day }: { promo: Promotion; day: PlanDay }) {
+  const { settings, update } = useSettings();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const key = capPeriodKey(promo, day);
+  if (!key || !promo.cap) return null;
+
+  const used = settings.capUsage[key] ?? 0;
+  const save = () => {
+    const amount = Math.max(0, Number(draft.replace(/[^0-9]/g, '')) || 0);
+    update({ capUsage: { ...settings.capUsage, [key]: amount } });
+    setEditing(false);
+  };
+
+  return (
+    <View style={styles.cap}>
+      <View style={styles.capBar}>
+        <View style={[styles.capFill, { width: `${Math.min(100, (used / promo.cap.amount) * 100)}%` }]} />
+      </View>
+      {editing ? (
+        <View style={styles.capEdit}>
+          <Text style={styles.detail}>Ya usé $</Text>
+          <TextInput style={styles.capInput} keyboardType="numeric" value={draft} onChangeText={setDraft} onSubmitEditing={save} autoFocus />
+          <Pressable onPress={save}>
+            <Text style={styles.link}>Guardar</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <Pressable onPress={() => { setDraft(String(used)); setEditing(true); }}>
+          <Text style={styles.detail}>
+            Te quedan {money(promo.cap.amount - Math.min(used, promo.cap.amount))} de {money(promo.cap.amount)} {promo.cap.per === 'mes' ? 'este mes' : 'esta semana'} · <Text style={styles.link}>Editar</Text>
+          </Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -115,4 +161,9 @@ const styles = StyleSheet.create({
   detail: { color: colors.muted, fontSize: 13, marginTop: 3, lineHeight: 18 },
   cardBottom: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
   link: { color: colors.brand, fontWeight: '700', fontSize: 12 },
+  cap: { marginTop: 8 },
+  capBar: { height: 6, borderRadius: 3, backgroundColor: '#f1f5f9', overflow: 'hidden' },
+  capFill: { height: 6, backgroundColor: colors.warn },
+  capEdit: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  capInput: { borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, minWidth: 90, color: colors.text },
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PlanDay } from "../benefits/eligibility";
+import { capPeriodKey, type PlanDay } from "../benefits/eligibility";
 import type { Promotion } from "../benefits/types";
 import type { MatchedItem, ProductOffer, ShoppingListItem, StoreId } from "../types";
 import { planShopping } from "./plan";
@@ -158,5 +158,41 @@ describe("planShopping", () => {
     const none = planShopping({ items: items("x"), matches: matchesFrom(items("x"), { dia: [null] }), promotions: [], days: DAYS });
     expect(none.notFound).toEqual([0]);
     expect(none.stops).toHaveLength(0);
+  });
+
+  it("shares a monthly cap between visits that use the same promo", () => {
+    const list = items("a", "b");
+    const shared = promo({ id: "modo", merchants: ["farmacity", "farmaplus"], discountPct: 50, cap: { amount: 1000, per: "mes" } });
+    const result = planShopping({
+      items: list,
+      matches: matchesFrom(list, { farmacity: [4000, null], farmaplus: [null, 4000] }),
+      promotions: [shared],
+      days: DAYS,
+    });
+
+    // Two visits, one $1.000 budget: not $1.000 off each.
+    expect(result.stops).toHaveLength(2);
+    expect(result.listTotal - result.total).toBe(1000);
+  });
+
+  it("counts what the user already used of a cap", () => {
+    const list = items("a");
+    const capped = promo({ id: "mp", merchants: ["dia"], discountPct: 20, cap: { amount: 5000, per: "mes" } });
+    const result = planShopping({
+      items: list,
+      matches: matchesFrom(list, { dia: [50000] }),
+      promotions: [capped],
+      days: DAYS,
+      capUsage: { "mp@2026-10": 4000 },
+    });
+
+    expect(result.total).toBe(49000);
+  });
+
+  it("keys weekly caps by the week's Monday", () => {
+    const weekly = promo({ id: "w", merchants: ["dia"], discountPct: 10, cap: { amount: 1, per: "semana" } });
+    expect(capPeriodKey(weekly, { date: "2026-10-25", dow: 0 })).toBe("w@2026-10-19");
+    expect(capPeriodKey(weekly, { date: "2026-10-19", dow: 1 })).toBe("w@2026-10-19");
+    expect(capPeriodKey(promo({ id: "c", merchants: [], discountPct: 1, cap: { amount: 1, per: "compra" } }), DAYS[0])).toBeNull();
   });
 });

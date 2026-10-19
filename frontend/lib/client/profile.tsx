@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { DEFAULT_SOURCE_IDS } from "../benefits/sources";
-import type { UserProfile } from "../benefits/eligibility";
+import type { CapUsage, UserProfile } from "../benefits/eligibility";
 import { STORE_IDS } from "../stores/registry";
 import type { StoreId } from "../types";
 
@@ -10,6 +10,15 @@ export interface Settings extends UserProfile {
   stores: StoreId[];
   /** Prefer fewer store visits over saving a few pesos. */
   fewerStops: boolean;
+  /** ARS already used of each promo's monthly/weekly cap, keyed by capPeriodKey. */
+  capUsage: CapUsage;
+  /** Corrections to automatic matches, keyed by the normalized item text. */
+  refinements: Record<string, Refinement>;
+}
+
+export interface Refinement {
+  excludedOfferIds?: string[];
+  queryBySite?: Partial<Record<StoreId, string>>;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -17,6 +26,8 @@ const DEFAULT_SETTINGS: Settings = {
   audiences: [],
   stores: STORE_IDS,
   fewerStops: true,
+  capUsage: {},
+  refinements: {},
 };
 
 const STORAGE_KEY = "azoapp.settings.v1";
