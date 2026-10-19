@@ -67,7 +67,7 @@ export default function DiscountDetail() {
   return (
     <View style={styles.container}>
         <Stack.Screen options={{ headerShown: false }} />
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <StatusBar barStyle="light-content" />
 
         <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 100 }}>
             {/* Header Image Area */}

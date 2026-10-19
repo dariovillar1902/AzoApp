@@ -145,6 +145,7 @@ public class SemanaNacionScraper : PlaywrightScraperBase, IScraper
                         Amount = amount,
                         Currency = currency,
                         Category = category,
+                        ValidDays = ScraperHelpers.ExtractValidDays(title + " " + description),
                         Stores = stores.Count > 0 ? stores : null
                     });
                 }

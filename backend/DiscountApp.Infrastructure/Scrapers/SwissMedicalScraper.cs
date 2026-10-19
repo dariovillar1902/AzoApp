@@ -101,6 +101,7 @@ public class SwissMedicalScraper : PlaywrightScraperBase, IScraper
                         Amount = amount,
                         Currency = currency,
                         Category = category,
+                        ValidDays = ScraperHelpers.ExtractValidDays(combined),
                         Stores = stores.Count > 0 ? stores : null
                     });
                 }
