@@ -128,7 +128,7 @@ Opcional: Settings → Functions → región `gru1` (São Paulo).
 
 ## Usarlo en el iPhone (Expo Go)
 
-La app usa Expo SDK 58, la versión que corre la Expo Go actual del App Store.
+La app usa Expo SDK 57 (Expo Go 57.x). Si Expo Go dice "Project is incompatible", la versión de Expo Go y la del SDK no coinciden.
 
 1. Instalá **Expo Go** desde el App Store.
 2. En la PC (misma Wi-Fi que el iPhone):
