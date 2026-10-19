@@ -26,15 +26,22 @@ el scraper de beneficios bancarios que ya tenía este repo.
     elijas a mano. Las correcciones se recuerdan ("Deshacer correcciones"
     las borra).
   - Checklist para tildar en el súper, **Ya compré acá** (descuenta lo
-    usado del tope de esa promo) y **Compartir** (texto para WhatsApp).
+    usado del tope de esa promo), **Recordarme** (notificación a las 9:00
+    del día elegido) y **Compartir** (texto para WhatsApp).
+  - Historial de precios en el dispositivo: debajo de cada producto, si
+    subió/bajó desde la última vez, el mínimo visto y un aviso cuando el
+    "precio antes" es más alto que todo lo que se le vio cobrar.
 - **Semana**: tus promos día por día (súper, farmacia, nafta), con topes,
   mínimos, cómo pagar, vigencia y la fuente. En las que tienen tope
-  mensual/semanal ves cuánto te queda y podés corregirlo ("Editar").
+  mensual/semanal ves cuánto te queda y podés corregirlo ("Editar"). La
+  campanita agenda un recordatorio semanal los días de esa promo.
 - **Explorar**: los beneficios que scrapea el backend .NET (Santander,
   Ciudad, Nación, Club La Nación, BBVA, Swiss Medical), filtrados por
   defecto a tus medios.
 - **Mis medios**: qué bancos/tarjetas/billeteras tenés, segmentos
   (jubilados) y en qué cadenas comparar. Se guarda en el dispositivo.
+  "Registrar reintegros": pegás los avisos de reintegro de Mercado Pago,
+  MODO o el banco y se descuentan del tope de la promo que corresponde.
 
 ## Cómo decide
 
@@ -62,6 +69,12 @@ se le resta lo que ya registraste como usado.
   **Verificar** salen de notas de prensa o del relevamiento de septiembre:
   confirmalas en la app del banco antes de pagar.
 - Coto se lee **en vivo** de su API pública.
+- Si el backend .NET está corriendo y seteás `DISCOUNTS_API_URL` (ej.
+  `http://localhost:5075`), el planificador también usa lo que scrapea de
+  Santander, Ciudad, Nación y Club La Nación, cuando nombra una cadena, un %
+  y los días.
+- Una tarea programada de Claude ("Actualizar promos AzoApp", días 1 y 15)
+  revisa el catálogo y abre un PR con los cambios.
 - Para refrescar: pedile a Claude "actualizá el catálogo de promos de
   AzoApp".
 
@@ -91,9 +104,20 @@ npm run typecheck
 ```
 
 En el celular (Expo Go) las API routes se sirven desde el mismo dev server.
-Para producción: `npx expo export --platform web` genera `dist/` con
-`client/` y `server/` (deployable en EAS Hosting o cualquier Node), y en la
-app nativa seteás `EXPO_PUBLIC_API_ORIGIN` con esa URL.
+Los recordatorios usan notificaciones locales: funcionan en el celular, no
+en la web.
+
+## Deploy (Vercel)
+
+`frontend/vercel.json` + `frontend/api/index.js` sirven el build de Expo
+(páginas + API routes) con el adaptador `expo-server/adapter/vercel`.
+
+1. En vercel.com → Add New → Project → importá `dariovillar1902/AzoApp`.
+2. **Root Directory = `frontend`**. Framework: "Other" (vercel.json define
+   build, output y rewrites). Opcional: Settings → Functions → región
+   `gru1` (São Paulo), la más cercana a Buenos Aires.
+3. Para la app del celular, seteá `EXPO_PUBLIC_API_ORIGIN` con la URL del
+   deploy al compilarla.
 
 El backend .NET (`cd backend && dotnet run --project DiscountApp.Api`) solo
 hace falta para la pestaña **Explorar**.
