@@ -47,7 +47,7 @@ export default function WeekScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.ink} />
+      <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
         <Header eyebrow="Tus promos" title="Esta semana" subtitle={updated ? `Catálogo revisado el ${updated.split('-').reverse().join('/')}` : undefined}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 14 }}>

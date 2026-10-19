@@ -136,7 +136,7 @@ export default function ListScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.ink} />
+      <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={{ paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         <Header eyebrow="Dónde y cuándo comprar" title="Mi lista" subtitle={`Con tus ${settings.sources.length} bancos, tarjetas y billeteras`} />
 

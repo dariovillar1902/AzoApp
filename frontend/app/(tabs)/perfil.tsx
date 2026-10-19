@@ -32,7 +32,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.ink} />
+      <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
         <Header eyebrow="Configuración" title="Mis medios" subtitle="Solo se usan promos de lo que tenés activado" />
         <View style={styles.body}>
