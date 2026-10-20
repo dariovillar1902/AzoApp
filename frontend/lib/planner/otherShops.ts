@@ -50,7 +50,7 @@ export interface OtherShop {
   label: string;
   promotion: Promotion;
   day: PlanDay;
-  /** What the discount is computed on: the fuel load, or the item's cheapest shelf price at the chains. */
+  /** What the discount is computed on: the fuel load, or the recommended product's shelf price. */
   baseAmount: number;
   saving: number;
   /** baseAmount - saving. For shops it's an estimate: we don't know their shelf price. */
@@ -126,8 +126,8 @@ export function otherShopsFor(
     return rank(shops, 4);
   }
 
-  // Reference: the item's cheapest shelf price at the chains (no promo) — what a neighborhood shop is likely to charge.
-  const shelf = plan?.options.length ? Math.min(...plan.options.map((o) => o.listCost)) : null;
+  // Reference: the shelf price (no promo) of the product we recommend — same item and size, so the estimate compares like with like.
+  const shelf = plan?.best?.listCost ?? null;
   const chainBest = plan?.best?.cost ?? null;
   const amount = shelf ?? 0;
   const shops: OtherShop[] = [];

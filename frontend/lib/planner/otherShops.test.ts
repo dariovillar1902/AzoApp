@@ -38,7 +38,7 @@ describe("fuel", () => {
 describe("neighborhood shops", () => {
   const plan = {
     item: { query: "filet de merluza", quantity: 1 },
-    best: { cost: 9000 },
+    best: { cost: 9000, listCost: 10000 },
     bestToday: null,
     options: [{ store: "carrefour", listCost: 10000 }],
   } as unknown as ItemPlan;
