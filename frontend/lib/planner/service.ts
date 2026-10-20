@@ -1,4 +1,4 @@
-import { CATALOG } from "../benefits/catalog";
+import { CATALOG, MERCHANT_NAMES } from "../benefits/catalog";
 import { fetchCotoLivePromotions } from "../benefits/cotoLive";
 import { fetchScrapedPromotions } from "../benefits/scrapedPromos";
 import { isEligible, upcomingDays, type CapUsage, type UserProfile } from "../benefits/eligibility";
@@ -8,6 +8,7 @@ import { pickBestOffer } from "../core/matching";
 import { normalizeText, stripSizeForSearch } from "../core/normalize";
 import { STORE_IDS, STORES } from "../stores/registry";
 import type { MatchedItem, ProductOffer, ShoppingListItem, StoreId } from "../types";
+import { otherShopsFor, type OtherShop } from "./otherShops";
 import { planShopping, type PlanResult } from "./plan";
 
 const CACHE_TTL_MS = 30 * 60 * 1000;
@@ -73,6 +74,8 @@ export interface PlanRequest {
 export interface PlanResponse extends PlanResult {
   /** Promotions (eligible for the user) that apply to items we couldn't price, keyed by item index. */
   hints: Record<number, Promotion[]>;
+  /** Fuel stations, neighborhood shops and pharmacies we don't price, with the promo that applies, keyed by item index. */
+  otherShops: Record<number, OtherShop[]>;
   storesSearched: StoreId[];
   storesFailed: StoreId[];
 }
@@ -126,5 +129,12 @@ export async function planForUser(request: PlanRequest): Promise<PlanResponse> {
     if (category) hints[index] = promotions.filter((p) => p.category === category);
   }
 
-  return { ...result, hints, storesSearched: stores, storesFailed: [...storesFailed] };
+  const otherShops: Record<number, OtherShop[]> = {};
+  const ctx = { profile: request.profile, days: result.days, capUsage: request.capUsage, merchantNames: MERCHANT_NAMES };
+  request.items.forEach((item, index) => {
+    const shops = otherShopsFor(item.query, result.items[index] ?? null, allPromotions, ctx, categoryHintFor(item.query) === "combustible");
+    if (shops.length > 0) otherShops[index] = shops;
+  });
+
+  return { ...result, hints, otherShops, storesSearched: stores, storesFailed: [...storesFailed] };
 }

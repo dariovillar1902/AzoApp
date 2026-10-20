@@ -53,3 +53,14 @@ describe("excludeOffers", () => {
     expect(input).toEqual([a, b]);
   });
 });
+
+describe("excluding by name", () => {
+  it("drops every SKU of a rejected product in that store only", async () => {
+    const { offerNameKey } = await import("./exclusions");
+    const a = makeOffer({ site: "carrefour", id: "1-1", name: "Leche Entera Ilolay 1 L" });
+    const twin = makeOffer({ site: "carrefour", id: "1-2", name: "Leche entera ILOLAY 1 l" });
+    const other = makeOffer({ site: "carrefour", id: "2-1", name: "Leche Entera Sancor 1 L" });
+    const elsewhere = makeOffer({ site: "dia", id: "9", name: "Leche Entera Ilolay 1 L" });
+    expect(excludeOffers([a, twin, other, elsewhere], [offerKey(a), offerNameKey(a)])).toEqual([other, elsewhere]);
+  });
+});

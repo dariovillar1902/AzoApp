@@ -1,10 +1,11 @@
 import { fetchWithTimeout } from "../core/http";
 import { normalizeText } from "../core/normalize";
+import { fetchLiveBankDiscounts } from "./bankDiscounts";
 import type { CapPeriod, PromoCategory, Promotion } from "./types";
 
 /** Shape of `GET /api/discounts` on the .NET backend (DiscountApp.Core.Entities.Discount). */
 export interface ScrapedDiscount {
-  id: number;
+  id: number | string;
   title: string;
   description: string | null;
   bankName: string | null;
@@ -39,6 +40,8 @@ const MERCHANTS: Record<string, { id: string; category: PromoCategory }> = {
   ypf: { id: "ypf", category: "combustible" },
   shell: { id: "shell", category: "combustible" },
   axion: { id: "axion", category: "combustible" },
+  puma: { id: "puma", category: "combustible" },
+  gulf: { id: "gulf", category: "combustible" },
 };
 
 const DAY_INDEX: Record<string, number> = {
@@ -104,14 +107,17 @@ export function promotionsFromScraped(discounts: ScrapedDiscount[]): Promotion[]
 }
 
 /**
- * Reads the .NET backend's scraped discounts when DISCOUNTS_API_URL is set
- * (e.g. http://localhost:5075). Without it, or if it's down, the planner
- * just uses the catalog and Coto's live promos.
+ * Planner promos from what the banks publish today (Santander, Ciudad, BBVA
+ * public APIs), plus the .NET backend's scrape when DISCOUNTS_API_URL is set.
  */
 export async function fetchScrapedPromotions(): Promise<Promotion[]> {
+  const live = fetchLiveBankDiscounts().then((r) => promotionsFromScraped(r.discounts));
   const base = process.env.DISCOUNTS_API_URL;
-  if (!base) return [];
-  const res = await fetchWithTimeout(`${base.replace(/\/$/, "")}/api/discounts`, {}, 5000);
-  if (!res.ok) return [];
-  return promotionsFromScraped((await res.json()) as ScrapedDiscount[]);
+  const backend = base
+    ? fetchWithTimeout(`${base.replace(/\/$/, "")}/api/discounts`, {}, 5000)
+        .then(async (res) => (res.ok ? promotionsFromScraped((await res.json()) as ScrapedDiscount[]) : []))
+        .catch(() => [] as Promotion[])
+    : Promise.resolve([] as Promotion[]);
+  const [a, b] = await Promise.all([live.catch(() => [] as Promotion[]), backend]);
+  return [...a, ...b];
 }

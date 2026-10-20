@@ -14,6 +14,7 @@ const CATEGORIES: { id: PromoCategory | 'todas'; label: string }[] = [
   { id: 'supermercado', label: 'Súper' },
   { id: 'farmacia', label: 'Farmacia' },
   { id: 'combustible', label: 'Nafta' },
+  { id: 'comercios', label: 'Comercios' },
 ];
 
 export default function WeekScreen() {

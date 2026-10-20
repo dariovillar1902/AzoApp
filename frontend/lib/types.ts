@@ -10,12 +10,13 @@ export type StoreId =
   | "farmacity"
   | "farmaplus"
   | "farmaonline"
-  | "farmatodo";
+  | "farmatodo"
+  | "mercadolibre";
 
 /** Kept as an alias so the matching code ported from comparador-precios-ar reads unchanged. */
 export type SiteId = StoreId;
 
-export type StoreKind = "super" | "farmacia";
+export type StoreKind = "super" | "farmacia" | "online";
 
 export interface ProductOffer {
   site: StoreId;
