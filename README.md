@@ -136,7 +136,15 @@ rama genera un preview.
 **Importante:** en Settings → Deployment Protection, poné Vercel
 Authentication en **Standard Protection**. Con "All Deployments" la URL de
 producción pide login de Vercel y la app del iPhone no puede llamar a la API.
-Opcional: Settings → Functions → región `gru1` (São Paulo).
+Recomendado: Settings → Functions → región `gru1` (São Paulo). Desde EE.UU.
+(`iad1`, el default) Santander y Banco Ciudad no responden en Explorar.
+
+**Mercado Libre** bloquea los servidores de Vercel (pide verificación). Para
+compararlo desde Vercel: creá una app gratis en
+developers.mercadolibre.com.ar y cargá `MELI_CLIENT_ID` y
+`MELI_CLIENT_SECRET` en Settings → Environment Variables. Sin eso funciona
+solo con `npx expo start` desde tu PC (usa tu conexión) y en Vercel aparece
+como "sin respuesta".
 
 ## Usarlo en el iPhone (Expo Go)
 

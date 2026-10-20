@@ -34,9 +34,34 @@ function offer(id: string, name: string, price: number, listPrice: number | null
   };
 }
 
+let tokenCache: { token: string; expiresAt: number } | null = null;
+
+/**
+ * App token for the official API (client_credentials). Needs MELI_CLIENT_ID
+ * and MELI_CLIENT_SECRET from an app created at developers.mercadolibre.com.ar.
+ */
+async function accessToken(): Promise<string | null> {
+  const id = process.env.MELI_CLIENT_ID;
+  const secret = process.env.MELI_CLIENT_SECRET;
+  if (!id || !secret) return null;
+  if (tokenCache && Date.now() < tokenCache.expiresAt) return tokenCache.token;
+  const res = await fetchWithTimeout("https://api.mercadolibre.com/oauth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+    body: new URLSearchParams({ grant_type: "client_credentials", client_id: id, client_secret: secret }).toString(),
+  });
+  if (!res.ok) throw new Error(`mercadolibre token ${res.status}`);
+  const json = (await res.json()) as { access_token: string; expires_in: number };
+  tokenCache = { token: json.access_token, expiresAt: Date.now() + (json.expires_in - 300) * 1000 };
+  return json.access_token;
+}
+
 async function searchApi(query: string): Promise<ProductOffer[]> {
+  const token = await accessToken();
   const url = `https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(query)}&limit=30`;
-  const res = await fetchWithTimeout(url, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" } });
+  const res = await fetchWithTimeout(url, {
+    headers: { "User-Agent": USER_AGENT, Accept: "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  });
   if (!res.ok) throw new Error(`mercadolibre api ${res.status}`);
   const json = (await res.json()) as { results?: MlApiResult[] };
   return (json.results ?? []).map((r) => offer(r.id, r.title, r.price, r.original_price, r.permalink, r.thumbnail));
@@ -80,24 +105,23 @@ async function searchListing(query: string): Promise<ProductOffer[]> {
   const res = await fetchWithTimeout(`https://listado.mercadolibre.com.ar/${encodeURIComponent(slug).replace(/%2D/g, "-")}`, {
     headers: { "User-Agent": USER_AGENT, Accept: "text/html", "Accept-Language": "es-AR" },
   });
-  if (!res.ok) throw new Error(`mercadolibre listado ${res.status} (${res.url})`);
-  const html = await res.text();
-  if (!html.includes("poly-card")) console.warn(`mercadolibre: ${res.url} → ${html.match(/<title>([^<]*)/)?.[1] ?? html.length}`);
-  return parseListing(html);
+  if (!res.ok) throw new Error(`mercadolibre listado ${res.status}`);
+  // From datacenter IPs (e.g. Vercel) Mercado Libre answers with a bot check instead of results.
+  if (/account-verification/.test(res.url)) throw new Error("mercadolibre pidió verificación (bloquea servidores)");
+  return parseListing(await res.text());
 }
 
 /**
- * Mercado Libre (incl. its Supermercado). The public search API now often
- * asks for a token, so when it refuses we read the results page instead.
+ * Mercado Libre (incl. its Supermercado). Uses the official API when
+ * MELI_CLIENT_ID/MELI_CLIENT_SECRET are set; otherwise reads the results
+ * page, which works from a home connection (Expo dev server on your PC) but
+ * not from Vercel, where it reports the store as not answering.
  */
 export async function searchMercadoLibre(query: string): Promise<ProductOffer[]> {
   try {
-    const offers = await searchApi(query);
-    if (offers.length > 0) return offers;
+    return await searchApi(query);
   } catch (err) {
-    console.warn(`mercadolibre: ${(err as Error).message}, trying the results page`);
+    if (process.env.MELI_CLIENT_ID) throw err;
   }
-  const offers = await searchListing(query);
-  if (offers.length === 0) console.warn(`mercadolibre: results page had no product cards for "${query}"`);
-  return offers;
+  return searchListing(query);
 }
