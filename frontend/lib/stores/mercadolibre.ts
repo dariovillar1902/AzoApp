@@ -80,8 +80,10 @@ async function searchListing(query: string): Promise<ProductOffer[]> {
   const res = await fetchWithTimeout(`https://listado.mercadolibre.com.ar/${encodeURIComponent(slug).replace(/%2D/g, "-")}`, {
     headers: { "User-Agent": USER_AGENT, Accept: "text/html", "Accept-Language": "es-AR" },
   });
-  if (!res.ok) throw new Error(`mercadolibre listado ${res.status}`);
-  return parseListing(await res.text());
+  if (!res.ok) throw new Error(`mercadolibre listado ${res.status} (${res.url})`);
+  const html = await res.text();
+  if (!html.includes("poly-card")) console.warn(`mercadolibre: ${res.url} → ${html.match(/<title>([^<]*)/)?.[1] ?? html.length}`);
+  return parseListing(html);
 }
 
 /**
@@ -92,8 +94,10 @@ export async function searchMercadoLibre(query: string): Promise<ProductOffer[]>
   try {
     const offers = await searchApi(query);
     if (offers.length > 0) return offers;
-  } catch {
-    // fall through to the HTML listing
+  } catch (err) {
+    console.warn(`mercadolibre: ${(err as Error).message}, trying the results page`);
   }
-  return searchListing(query);
+  const offers = await searchListing(query);
+  if (offers.length === 0) console.warn(`mercadolibre: results page had no product cards for "${query}"`);
+  return offers;
 }

@@ -184,7 +184,7 @@ export function catalogDiscounts(promotions: Promotion[] = CATALOG, merchantName
       bankName: who,
       amount: p.discountPct,
       currency: "%",
-      category: p.category === "combustible" ? "Combustible" : p.category === "farmacia" ? "Farmacia" : "Supermercado",
+      category: { combustible: "Combustible", farmacia: "Farmacia", comercios: "Comercios", supermercado: "Supermercado" }[p.category],
       validDays: p.daysOfWeek ? [...p.daysOfWeek].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((d) => DAY_NAME_BY_INDEX[d]) : [],
       url: p.sourceUrl ?? null,
       imageUrl: null,
@@ -219,7 +219,8 @@ export function fetchLiveBankDiscounts(): Promise<BankDiscountsResult> {
         try {
           const list = await fetcher();
           return { name, list, ok: list.length > 0 };
-        } catch {
+        } catch (err) {
+          console.warn(`bankDiscounts ${name}: ${(err as Error).message}`);
           return { name, list: [] as BankDiscount[], ok: false };
         }
       }),
