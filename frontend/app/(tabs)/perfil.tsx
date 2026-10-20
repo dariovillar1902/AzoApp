@@ -74,7 +74,7 @@ export default function ProfileScreen() {
             {STORE_IDS.map((id) => (
               <ToggleRow
                 key={id}
-                label={`${STORES[id].name} (${STORES[id].kind === 'super' ? 'súper' : 'farmacia'})`}
+                label={`${STORES[id].name} (${{ super: 'súper', farmacia: 'farmacia', online: 'online, con envío' }[STORES[id].kind]})`}
                 value={settings.stores.includes(id)}
                 onChange={(on) => update({ stores: toggle(settings.stores, id, on) })}
               />

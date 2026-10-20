@@ -28,6 +28,8 @@ export const SOURCES: BenefitSource[] = [
   { id: "cuentadni", name: "Cuenta DNI", kind: "billetera", aliases: ["cuenta dni", "banco provincia"] },
   { id: "naranjax", name: "Naranja X", kind: "billetera", aliases: ["naranja"] },
   { id: "personalpay", name: "Personal Pay", kind: "billetera", aliases: ["personal pay"] },
+  { id: "brubank", name: "Brubank", kind: "banco", aliases: ["brubank"] },
+  { id: "clarin365", name: "Clarín 365", kind: "club", aliases: ["clarin 365", "tarjeta 365"] },
 ];
 
 /** What the user told us they have (Buenos Aires, Oct 2026). */

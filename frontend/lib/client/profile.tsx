@@ -18,6 +18,8 @@ export interface Settings extends UserProfile {
   promoReminders: Record<string, string[]>;
   /** Last position the user shared, to show nearby branches. */
   location: { lat: number; lon: number } | null;
+  /** Stores that existed when settings were last saved, so chains added later start switched on. */
+  knownStores: StoreId[];
 }
 
 export interface Refinement {
@@ -34,7 +36,18 @@ const DEFAULT_SETTINGS: Settings = {
   refinements: {},
   promoReminders: {},
   location: null,
+  knownStores: STORE_IDS,
 };
+
+/** Stores before knownStores existed. */
+const LEGACY_STORES: StoreId[] = STORE_IDS.filter((id) => id !== "mercadolibre");
+
+function migrate(saved: Partial<Settings>): Settings {
+  const merged = { ...DEFAULT_SETTINGS, ...saved };
+  const known = saved.knownStores ?? LEGACY_STORES;
+  const added = STORE_IDS.filter((id) => !known.includes(id));
+  return { ...merged, stores: [...merged.stores.filter((id) => STORE_IDS.includes(id)), ...added], knownStores: STORE_IDS };
+}
 
 const STORAGE_KEY = "azoapp.settings.v1";
 
@@ -52,7 +65,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const reload = () => {
     AsyncStorage.getItem(STORAGE_KEY)
-      .then((raw) => raw && setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(raw) }))
+      .then((raw) => raw && setSettings(migrate(JSON.parse(raw))))
       .catch(() => {});
   };
 

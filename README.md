@@ -17,11 +17,20 @@ el scraper de beneficios bancarios que ya tenía este repo.
     total. "Si no podés ese día" muestra el mismo carrito en los otros días.
   - **Por producto**: el mejor lugar+día para cada ítem, y el mejor de hoy.
   - **Todo en un solo lugar**: la mejor cadena para comprar todo junto.
-  - Lo que no venden las cadenas (ej. nafta) muestra las promos de esa
-    categoría que te corresponden.
+  - **Nafta**: escribí "nafta $40000" (sin monto toma $40.000) y te dice
+    qué estación y qué día te conviene con tus medios, cuánto ahorrás, y
+    abajo las promos que tendrías con otros medios.
+  - **Otros comercios**: si el ítem se compra en pescadería, carnicería,
+    verdulería, panadería, etc. ("filet de merluza"), muestra las promos de
+    esos comercios con un precio estimado (el de las cadenas menos el
+    descuento) y lo marca 💡 cuando sale más barato. Lo mismo con farmacias
+    que no comparamos (Farmalife).
+  - **Por producto** muestra además la mejor opción en el otro tipo de
+    tienda: farmacia, súper u online (Mercado Libre).
   - "Menos paradas" (activado por defecto) solo agrega una tienda si ahorra
     más de $3.000.
-  - Si eligió mal un producto: **✗ No es esto** lo descarta y vuelve a
+  - Si eligió mal un producto: **✗ No es esto** lo descarta (junto con
+    las otras presentaciones con el mismo nombre en esa cadena) y vuelve a
     planificar; **Elegir otro** muestra lo que vende esa cadena para que
     elijas a mano. Las correcciones se recuerdan ("Deshacer correcciones"
     las borra).
@@ -39,8 +48,8 @@ el scraper de beneficios bancarios que ya tenía este repo.
   mínimos, cómo pagar, vigencia y la fuente. En las que tienen tope
   mensual/semanal ves cuánto te queda y podés corregirlo ("Editar"). La
   campanita agenda un recordatorio semanal los días de esa promo.
-- **Explorar**: los beneficios que scrapea el backend .NET (Santander,
-  Ciudad, Nación, Club La Nación, BBVA, Swiss Medical), filtrados por
+- **Explorar**: los beneficios que publican Santander, Ciudad y BBVA (leídos
+  en vivo por la API de la app) más el catálogo curado, filtrados por
   defecto a tus medios.
 - **Mis medios**: qué bancos/tarjetas/billeteras tenés, segmentos
   (jubilados) y en qué cadenas comparar. Se guarda en el dispositivo.
@@ -52,7 +61,7 @@ el scraper de beneficios bancarios que ya tenía este repo.
 ## Cómo decide
 
 1. Busca cada ítem en Carrefour, Coto, Día, Jumbo, Disco, Vea, ChangoMás,
-   Farmacity, Farmaplus, Farmaonline y Farmatodo (APIs públicas de cada
+   Farmacity, Farmaplus, Farmaonline, Farmatodo y Mercado Libre (APIs públicas de cada
    sitio) y elige el producto más parecido (texto + tamaño; código de
    `comparador-precios-ar`).
 2. Para cada tienda y cada uno de los próximos 7 días, aplica la mejor promo
@@ -75,10 +84,12 @@ se le resta lo que ya registraste como usado.
   **Verificar** salen de notas de prensa o del relevamiento de septiembre:
   confirmalas en la app del banco antes de pagar.
 - Coto se lee **en vivo** de su API pública.
-- Si el backend .NET está corriendo y seteás `DISCOUNTS_API_URL` (ej.
-  `http://localhost:5075`), el planificador también usa lo que scrapea de
-  Santander, Ciudad, Nación y Club La Nación, cuando nombra una cadena, un %
-  y los días.
+- Santander, Ciudad y BBVA se leen **en vivo** de sus APIs públicas
+  (`lib/benefits/bankDiscounts.ts`); el planificador usa las que nombran una
+  cadena, un % y los días. Si además corrés el backend .NET y seteás
+  `DISCOUNTS_API_URL`, suma lo que scrapea (Club La Nación, Semana Nación).
+- PedidosYa Market no tiene una API pública de productos,
+  así que no se compara.
 - Una tarea programada de Claude ("Actualizar promos AzoApp", días 1 y 15)
   revisa el catálogo y abre un PR con los cambios.
 - Para refrescar: pedile a Claude "actualizá el catálogo de promos de
@@ -93,6 +104,7 @@ frontend/                 Expo (iOS/Android/web) + API routes
   app/api/promos+api.ts   GET: catálogo + promos en vivo de Coto
   app/api/alternatives+api.ts  GET: productos de una cadena para elegir a mano
   app/api/branches+api.ts GET: sucursal más cercana de cada cadena (OpenStreetMap)
+  app/api/discounts+api.ts GET: beneficios para Explorar (bancos en vivo + catálogo)
   lib/core/               normalización y matching de productos
   lib/stores/             buscadores por cadena (VTEX, Coto, Farmatodo)
   lib/benefits/           medios, catálogo, elegibilidad
@@ -124,11 +136,19 @@ rama genera un preview.
 **Importante:** en Settings → Deployment Protection, poné Vercel
 Authentication en **Standard Protection**. Con "All Deployments" la URL de
 producción pide login de Vercel y la app del iPhone no puede llamar a la API.
-Opcional: Settings → Functions → región `gru1` (São Paulo).
+Recomendado: Settings → Functions → región `gru1` (São Paulo). Desde EE.UU.
+(`iad1`, el default) Santander y Banco Ciudad no responden en Explorar.
+
+**Mercado Libre** bloquea los servidores de Vercel (pide verificación). Para
+compararlo desde Vercel: creá una app gratis en
+developers.mercadolibre.com.ar y cargá `MELI_CLIENT_ID` y
+`MELI_CLIENT_SECRET` en Settings → Environment Variables. Sin eso funciona
+solo con `npx expo start` desde tu PC (usa tu conexión) y en Vercel aparece
+como "sin respuesta".
 
 ## Usarlo en el iPhone (Expo Go)
 
-La app usa Expo SDK 58, la versión que corre la Expo Go actual del App Store.
+La app usa Expo SDK 57 (Expo Go 57.x). Si Expo Go dice "Project is incompatible", la versión de Expo Go y la del SDK no coinciden.
 
 1. Instalá **Expo Go** desde el App Store.
 2. En la PC (misma Wi-Fi que el iPhone):
@@ -151,5 +171,5 @@ conexión. Sin la PC (o en un build instalado) la app usa
 Para instalarla como app propia (sin Expo Go) hace falta una cuenta de Apple
 Developer y `eas build -p ios` + TestFlight.
 
-El backend .NET (`cd backend && dotnet run --project DiscountApp.Api`) solo
-hace falta para la pestaña **Explorar**.
+El backend .NET (`cd backend && dotnet run --project DiscountApp.Api`) es
+opcional: la app ya no lo necesita.

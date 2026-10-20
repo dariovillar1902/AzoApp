@@ -5,7 +5,7 @@ import { AlternativesModal, type AlternativesTarget } from '../../components/Alt
 import { ScannerModal } from '../../components/ScannerModal';
 import { Badge, Card, colors, Header, SectionTitle } from '../../components/ui';
 import { capPeriodKey } from '../../lib/benefits/eligibility';
-import { offerKey } from '../../lib/core/exclusions';
+import { offerKey, offerNameKey } from '../../lib/core/exclusions';
 import { normalizeText } from '../../lib/core/normalize';
 import { apiOrigin } from '../../lib/client/api';
 import { dayLabel, merchantName, money, promoConditions, promoHeadline, unitPrice } from '../../lib/client/format';
@@ -16,7 +16,9 @@ import { reminderMessage, remindVisit } from '../../lib/client/reminders';
 import { parseShoppingList } from '../../lib/planner/parseList';
 import type { PlanResponse } from '../../lib/planner/service';
 import { directionsUrl, type Branch } from '../../lib/stores/branches';
-import { storeName } from '../../lib/stores/registry';
+import { STORES, storeName } from '../../lib/stores/registry';
+import type { OtherShop } from '../../lib/planner/otherShops';
+import { sourceName } from '../../lib/benefits/sources';
 import * as Location from 'expo-location';
 import type { ProductOffer, StoreId } from '../../lib/types';
 
@@ -25,7 +27,7 @@ type Line = Stop['lines'][number];
 
 const refinementKey = (query: string) => normalizeText(query);
 
-const PLACEHOLDER = 'Escribí lo que necesitás, uno por línea:\n2 leche entera 1l\nyerba 1kg\nibuprofeno 400\nnafta';
+const PLACEHOLDER = 'Escribí lo que necesitás, uno por línea:\n2 leche entera 1l\nyerba 1kg\nfilet de merluza\nibuprofeno 400\nnafta $40000';
 /** ARS a store visit has to save to be worth it when "menos paradas" is on. */
 const FEWER_STOPS_PENALTY = 3000;
 
@@ -106,8 +108,13 @@ export default function ListScreen() {
     runPlan(refinements);
   };
 
-  const rejectLine = (line: Line) =>
-    refine(line.item.query, (r) => ({ ...r, excludedOfferIds: [...(r.excludedOfferIds ?? []), offerKey(line.offer)] }));
+  const rejectLine = (line: Line) => {
+    setNotice(`Descarté "${line.offer.name}" en ${storeName(line.offer.site)}. Buscando otra opción…`);
+    refine(line.item.query, (r) => ({
+      ...r,
+      excludedOfferIds: [...(r.excludedOfferIds ?? []), offerKey(line.offer), offerNameKey(line.offer)],
+    }));
+  };
 
   const pickOffer = (offer: ProductOffer) => {
     if (!picking) return;
@@ -365,6 +372,14 @@ function PlanView({ plan, history, branches, onLocate, checked, onToggleCheck, o
                     </Text>
                   </Pressable>
                   <PriceNote insight={priceInsight(history, line.offer, plan.days[0].date)} />
+                  {(() => {
+                    const cheaper = (plan.otherShops?.[line.itemIndex] ?? []).find((o) => o.owned && o.cheaper);
+                    return cheaper ? (
+                      <Text style={styles.cheaperElsewhere}>
+                        💡 Más barato en {cheaper.label} {dayLabel(cheaper.day, plan.days)}: ~{money(cheaper.estimatedCost)}
+                      </Text>
+                    ) : null;
+                  })()}
                   {done ? null : (
                     <View style={styles.lineActions}>
                       <Pressable onPress={() => onReject(line)} hitSlop={6}>
@@ -398,11 +413,13 @@ function PlanView({ plan, history, branches, onLocate, checked, onToggleCheck, o
         </Card>
       ))}
 
-      {plan.notFound.length > 0 ? <SectionTitle>No encontrado en las cadenas</SectionTitle> : null}
+      {plan.notFound.length > 0 ? <SectionTitle>Fuera de las cadenas</SectionTitle> : null}
       {plan.notFound.map((index) => (
         <Card key={index}>
           <Text style={styles.lineQuery}>{plan.items[index].item.query}</Text>
-          {(plan.hints[index] ?? []).length > 0 ? (
+          {(plan.otherShops?.[index] ?? []).length > 0 ? (
+            <OtherShopsList shops={plan.otherShops[index]} days={plan.days} />
+          ) : (plan.hints[index] ?? []).length > 0 ? (
             plan.hints[index].map((p) => (
               <Text key={p.id} style={styles.promoDetail}>
                 • {p.merchants.map(merchantName).join(', ')}: {promoHeadline(p)} — {promoConditions(p)}
@@ -434,6 +451,8 @@ function PlanView({ plan, history, branches, onLocate, checked, onToggleCheck, o
                 .map((o) => `${storeName(o.store)} ${money(o.cost)}${unitPrice(o.offer) ? ` (${unitPrice(o.offer)})` : ''}`)
                 .join(' · ')}
             </Text>
+            <OtherKindOption plan={itemPlan} days={plan.days} />
+            {(plan.otherShops?.[i] ?? []).length > 0 ? <OtherShopsList shops={plan.otherShops[i]} days={plan.days} /> : null}
           </Card>
         ) : null,
       )}
@@ -454,6 +473,58 @@ function PlanView({ plan, history, branches, onLocate, checked, onToggleCheck, o
         </Card>
       ))}
     </>
+  );
+}
+
+const KIND_LABEL = { super: '🛒 En súper', farmacia: '💊 En farmacia', online: '📦 Online' } as const;
+
+/** Best option at each other kind of store: the pharmacy when a supermarket wins, Mercado Libre, and so on. */
+function OtherKindOption({ plan, days }: { plan: PlanResponse['items'][number]; days: PlanResponse['days'] }) {
+  if (!plan.best) return null;
+  const bestKind = STORES[plan.best.store].kind;
+  const others = (['super', 'farmacia', 'online'] as const)
+    .filter((kind) => kind !== bestKind)
+    .map((kind) => plan.options.find((o) => STORES[o.store].kind === kind))
+    .filter((o) => o !== undefined);
+  return (
+    <>
+      {others.map((o) => (
+        <Text key={o.store} style={styles.promoDetail}>
+          {KIND_LABEL[STORES[o.store].kind]}: {storeName(o.store)} {dayLabel(o.day, days)} · {money(o.cost)}
+          {o.promotion ? ` (${o.promotion.promotion.discountPct}% off)` : ''}
+        </Text>
+      ))}
+    </>
+  );
+}
+
+/** Fuel stations, neighborhood shops and pharmacies we can't price, with the promo that would apply. */
+function OtherShopsList({ shops, days }: { shops: OtherShop[]; days: PlanResponse['days'] }) {
+  return (
+    <View style={{ marginTop: 6 }}>
+      {shops.map((o) => (
+        <View key={o.promotion.id} style={{ marginTop: 4 }}>
+          <Text style={[styles.promoDetail, o.cheaper && o.owned ? styles.cheaperElsewhere : null, !o.owned && { opacity: 0.6 }]}>
+            {o.kind === 'combustible' ? '⛽' : o.kind === 'farmacia' ? '💊' : '🏪'} {o.label}: {o.promotion.discountPct}%{' '}
+            {dayLabel(o.day, days)}
+            {o.saving > 0
+              ? o.kind === 'combustible'
+                ? ` · ahorrás ${money(o.saving)} sobre ${money(o.baseAmount)}`
+                : ` · ~${money(o.estimatedCost)}${o.cheaper ? ' (más barato que las cadenas)' : ''}`
+              : o.promotion.minPurchase
+                ? ` · mínimo ${money(o.promotion.minPurchase)}`
+                : ''}
+          </Text>
+          <Text style={styles.otherShopMeta}>
+            {o.owned
+              ? `${o.promotion.payment ?? promoHeadline(o.promotion)} · ${promoConditions(o.promotion)}`
+              : `Si tuvieras ${o.promotion.requires.map(sourceName).join(' + ')} · ${promoConditions(o.promotion)}`}
+            {o.promotion.notes ? ` · ${o.promotion.notes}` : ''}
+            {o.kind !== 'combustible' && o.saving > 0 ? ' · precio estimado con el de las cadenas' : ''}
+          </Text>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -503,6 +574,8 @@ const styles = StyleSheet.create({
   button: { backgroundColor: colors.brand, paddingVertical: 12, paddingHorizontal: 22, borderRadius: 12, minWidth: 120, alignItems: 'center' },
   buttonText: { color: '#fff', fontWeight: '800', fontSize: 15 },
   hint: { color: colors.faint, marginTop: 8, fontSize: 12 },
+  cheaperElsewhere: { color: colors.good, fontSize: 12, fontWeight: '600', marginTop: 2 },
+  otherShopMeta: { color: colors.faint, fontSize: 11, marginTop: 1 },
   summary: { backgroundColor: colors.ink },
   summaryLabel: { color: colors.faint, fontWeight: '700', fontSize: 12, textTransform: 'uppercase' },
   summaryTotal: { color: '#fff', fontSize: 34, fontWeight: '900' },

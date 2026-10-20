@@ -1,6 +1,6 @@
 import type { StoreId } from "../types";
 
-export type PromoCategory = "supermercado" | "farmacia" | "combustible";
+export type PromoCategory = "supermercado" | "farmacia" | "combustible" | "comercios";
 
 export type CapPeriod = "compra" | "semana" | "mes";
 
@@ -14,6 +14,8 @@ export interface Promotion {
   /** 0 = Sunday ... 6 = Saturday. Undefined = every day. */
   daysOfWeek?: number[];
   discountPct: number;
+  /** For "comercios": kinds of shop it covers (see lib/planner/rubros.ts), e.g. ["pescaderia", "carniceria"]. */
+  rubros?: string[];
   cap?: { amount: number; per: CapPeriod };
   minPurchase?: number;
   /** How to pay to get it ("QR de BNA+ MODO con Visa crédito o débito"). */

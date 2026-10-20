@@ -1,6 +1,7 @@
 import type { ProductOffer, StoreId, StoreKind } from "../types";
 import { searchCoto } from "./coto";
 import { searchFarmatodo } from "./farmatodo";
+import { searchMercadoLibre } from "./mercadolibre";
 import { searchVtex } from "./vtex";
 
 export interface StoreInfo {
@@ -30,6 +31,7 @@ export const STORES: Record<StoreId, StoreInfo> = {
   farmaplus: { id: "farmaplus", name: "Farmaplus", kind: "farmacia", search: vtex("https://www.farmaplus.com.ar", "farmaplus") },
   farmaonline: { id: "farmaonline", name: "Farmaonline", kind: "farmacia", search: vtex("https://www.farmaonline.com", "farmaonline") },
   farmatodo: { id: "farmatodo", name: "Farmatodo", kind: "farmacia", search: searchFarmatodo },
+  mercadolibre: { id: "mercadolibre", name: "Mercado Libre", kind: "online", search: searchMercadoLibre },
 };
 
 export const STORE_IDS = Object.keys(STORES) as StoreId[];

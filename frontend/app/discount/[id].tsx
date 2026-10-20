@@ -1,12 +1,12 @@
 import { View, Text, Image, ScrollView, ActivityIndicator, Linking, Pressable, StatusBar, StyleSheet, Dimensions } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { API_URL } from '../../constants/Config';
+import { apiOrigin } from '../../lib/client/api';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
 interface Discount {
-  id: number;
+  id: string;
   title: string;
   description: string;
   bankName: string;
@@ -14,7 +14,7 @@ interface Discount {
   amount: number | null;
   currency: string;
   validDays: string[];
-  url: string;
+  url: string | null;
   imageUrl: string | null;
   expirationDate: string | null;
   stores: string[] | null;
@@ -36,7 +36,7 @@ export default function DiscountDetail() {
 
   const fetchDiscount = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/discounts/${id}`);
+      const response = await fetch(`${apiOrigin()}/api/discounts/${encodeURIComponent(String(id))}`);
       if (response.ok) {
         const data = await response.json();
         setDiscount(data);
@@ -167,15 +167,15 @@ export default function DiscountDetail() {
         </ScrollView>
 
         {/* Floating Action Button Area */}
-        <View style={styles.fabContainer}>
+        {discount.url ? <View style={styles.fabContainer}>
              <Pressable 
-                onPress={() => Linking.openURL(discount.url)}
+                onPress={() => Linking.openURL(discount.url!)}
                 style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
             >
                 <Text style={styles.fabText}>Ir al sitio web</Text>
                 <Ionicons name="open-outline" size={22} color="white" style={{ marginLeft: 8 }} />
             </Pressable>
-        </View>
+        </View> : null}
     </View>
   );
 }

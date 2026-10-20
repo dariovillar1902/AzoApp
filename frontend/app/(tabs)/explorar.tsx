@@ -1,12 +1,12 @@
-import { View, Text, FlatList, ActivityIndicator, Image, Pressable, StatusBar, StyleSheet, Platform, Dimensions, TextInput, Alert } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, Image, Pressable, StatusBar, StyleSheet, Platform, Dimensions, TextInput } from 'react-native';
 import { useEffect, useState, useMemo } from 'react';
-import { API_URL } from '../../constants/Config';
+import { apiOrigin } from '../../lib/client/api';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '../../lib/client/profile';
 
 interface Discount {
-  id: number;
+  id: string;
   title: string;
   bankName: string;
   category: string;
@@ -14,19 +14,11 @@ interface Discount {
   currency: string;
   imageUrl: string | null;
   stores: string[] | null;
+  requires: string[];
 }
 
 const MINE = "Mis medios";
-const BANKS = [MINE, "All", "Banco Nación", "Club La Nacion", "BBVA", "Santander", "Banco Ciudad", "Swiss Medical"];
-
-/** Backend scraper names → source ids from lib/benefits/sources. */
-const BANK_SOURCE: Record<string, string> = {
-  "Banco Nación": "nacion",
-  "Club La Nacion": "clublanacion",
-  BBVA: "bbva",
-  Santander: "santander",
-  "Banco Ciudad": "ciudad",
-};
+const ALL = "Todos";
 
 const { width } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
@@ -40,33 +32,28 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [scraping, setScraping] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState<string[]>([]);
   const router = useRouter();
 
   useEffect(() => {
     fetchDiscounts();
-  }, [selectedBank]);
+  }, []);
+
+  const banks = useMemo(() => [MINE, ALL, ...new Set(discounts.map((d) => d.bankName))], [discounts]);
 
   const fetchDiscounts = async () => {
     setLoading(true);
+    setError(null);
     try {
-      let url = `${API_URL}/api/discounts`;
-      // We fetch all or filter by bank on backend. 
-      // Search is client-side for responsivness on small datasets.
-      if (selectedBank !== "All" && selectedBank !== MINE) {
-        url += `?bank=${encodeURIComponent(selectedBank)}`;
-      }
-      const response = await fetch(url);
-      const headerValue = response.headers.get('X-Last-Updated');
-      if (headerValue) {
-        const date = new Date(headerValue);
-        setLastUpdated(
-          date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-        );
-      }
+      const response = await fetch(`${apiOrigin()}/api/discounts`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
-      setDiscounts(data);
-    } catch (error) {
-      console.error("Error fetching discounts:", error);
+      setDiscounts(data.discounts);
+      setFailed(data.failed ?? []);
+      setLastUpdated(new Date(data.fetchedAt).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }));
+    } catch {
+      setError('No pude cargar los beneficios. Revisá la conexión y tocá ↺.');
     } finally {
       setLoading(false);
     }
@@ -74,21 +61,16 @@ export default function HomeScreen() {
 
   const triggerScrape = async (): Promise<void> => {
     setScraping(true);
-    try {
-      const response = await fetch(`${API_URL}/api/scrape`, { method: 'POST' });
-      if (!response.ok) throw new Error('Error al actualizar');
-      await fetchDiscounts();
-    } catch (error: unknown) {
-      Alert.alert('Error', 'No se pudieron actualizar los descuentos. Verificá la conexión.');
-    } finally {
-      setScraping(false);
-    }
+    await fetchDiscounts();
+    setScraping(false);
   };
 
   const filteredDiscounts = useMemo(() => {
     const mine = selectedBank === MINE
-      ? discounts.filter(d => settings.sources.includes(BANK_SOURCE[d.bankName]))
-      : discounts;
+      ? discounts.filter(d => d.requires.every(r => settings.sources.includes(r)))
+      : selectedBank === ALL
+      ? discounts
+      : discounts.filter(d => d.bankName === selectedBank);
     if (!searchQuery) return mine;
     const lower = searchQuery.toLowerCase();
     return mine.filter(d => 
@@ -104,7 +86,7 @@ export default function HomeScreen() {
         styles.card,
         pressed && styles.cardPressed
       ]}
-      onPress={() => router.push(`/discount/${item.id}`)}
+      onPress={() => router.push(`/discount/${encodeURIComponent(item.id)}`)}
     >
       <View style={styles.cardContent}>
         {item.imageUrl ? (
@@ -179,7 +161,7 @@ export default function HomeScreen() {
           {scraping
             ? 'Actualizando descuentos...'
             : lastUpdated
-            ? `Actualizado: ${lastUpdated}`
+            ? `Actualizado: ${lastUpdated}${failed.length > 0 ? ` · sin respuesta: ${failed.join(', ')}` : ''}`
             : 'Tocá ↺ para cargar descuentos'}
         </Text>
         
@@ -199,7 +181,7 @@ export default function HomeScreen() {
       {/* Filters */}
       <View style={styles.filterContainer}>
         <FlatList
-          data={BANKS}
+          data={banks}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterListContent}
@@ -231,13 +213,13 @@ export default function HomeScreen() {
         <FlatList
           data={filteredDiscounts}
           renderItem={renderItem}
-          keyExtractor={item => item.id.toString()}
+          keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
           numColumns={numColumns}
           key={numColumns} // Force re-render on layout change
           ListEmptyComponent={
             <View style={styles.centerContainer}>
-                <Text style={styles.emptyText}>No se encontraron descuentos</Text>
+                <Text style={styles.emptyText}>{error ?? 'No se encontraron descuentos'}</Text>
             </View>
           }
         />
